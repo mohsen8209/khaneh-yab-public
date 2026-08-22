@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>خانه‌یاب</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand-block">
+        <span class="brand-mark" aria-hidden="true">خ</span>
+        <div>
+          <h1>خانه‌یاب</h1>
+          <p id="last-scan">هنوز اسکن نشده</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <div class="account-summary">
+          <span id="current-user">حساب شخصی</span>
+          <a id="profile-link" href="/setup">ویرایش جست‌وجو</a>
+          <a id="admin-link" href="/admin" hidden>مدیریت</a>
+          <button class="text-button" id="logout-button" type="button">خروج</button>
+        </div>
+        <div class="notify-state" id="notify-state">اعلان گوشی</div>
+        <button class="primary-button" id="scan-button" type="button">
+          <span aria-hidden="true">↻</span>
+          تازه‌سازی نتایج
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="stats" aria-label="خلاصه وضعیت">
+        <div><span id="stat-total">۰</span><small>آگهی دیده‌شده</small></div>
+        <div><span id="stat-alerts">۰</span><small>کیس برتر</small></div>
+        <div><span id="stat-reviews">۰</span><small>نیازمند بررسی</small></div>
+        <div><span id="stat-best">۰</span><small>بهترین نمره</small></div>
+      </section>
+
+      <section class="learning-panel" aria-label="مدل سلیقه شخصی">
+        <div class="learning-summary">
+          <span class="learning-dot" id="learning-dot" aria-hidden="true"></span>
+          <div>
+            <strong id="learning-title">در حال آماده‌سازی مدل شخصی</strong>
+            <small id="learning-detail">بازخوردها روی همین دستگاه نگه‌داری می‌شوند</small>
+          </div>
+        </div>
+        <div class="learning-meter" aria-label="پیشرفت یادگیری">
+          <i id="learning-progress"></i>
+        </div>
+        <div class="preference-list" id="preference-list" aria-label="ترجیحات آموخته‌شده"></div>
+        <div class="learning-actions">
+          <button class="secondary-button compare-button" id="compare-button" type="button">
+            <span aria-hidden="true">⇄</span>
+            مقایسه دو خانه
+          </button>
+          <button class="icon-button" id="reset-learning" type="button" title="بازنشانی یادگیری شخصی" aria-label="بازنشانی یادگیری شخصی">↺</button>
+        </div>
+      </section>
+
+      <section class="notification-bar" id="notification-bar" aria-label="اعلان گوشی">
+        <label for="topic-url">کانال ntfy</label>
+        <input id="topic-url" type="text" readonly>
+        <button class="icon-button" id="copy-topic" type="button" title="کپی آدرس کانال" aria-label="کپی آدرس کانال">□</button>
+        <button class="secondary-button" id="test-notification" type="button">تست اعلان</button>
+      </section>
+
+      <section class="toolbar" aria-label="فیلتر نتایج">
+        <div class="tabs" role="tablist" aria-label="وضعیت آگهی">
+          <button class="tab active" data-status="" type="button">همه</button>
+          <button class="tab" data-status="alert" type="button">برتر</button>
+          <button class="tab" data-status="review" type="button">بررسی</button>
+          <button class="tab" data-status="candidate" type="button">نامزدها</button>
+          <button class="tab" data-status="rejected" type="button">ردشده</button>
+        </div>
+        <div class="filters">
+          <label class="search-field">
+            <span aria-hidden="true">⌕</span>
+            <input id="search-input" type="search" placeholder="جستجو در عنوان یا محله">
+          </label>
+          <select id="district-filter" aria-label="فیلتر محله">
+            <option value="">همه محله‌ها</option>
+          </select>
+          <select id="sort-select" aria-label="مرتب‌سازی نتایج">
+            <optgroup label="زمان انتشار">
+              <option value="newest">تازه‌ترین آگهی‌ها</option>
+              <option value="oldest">قدیمی‌ترین آگهی‌ها</option>
+            </optgroup>
+            <optgroup label="رتبه‌بندی">
+              <option value="score_desc">بالاترین نمره</option>
+              <option value="score_asc">پایین‌ترین نمره</option>
+              <option value="location_desc">بهترین محله</option>
+              <option value="location_asc">ضعیف‌ترین محله</option>
+              <option value="trust_desc">معتبرترین آگهی</option>
+            </optgroup>
+            <optgroup label="هزینه">
+              <option value="rent_asc">کمترین اجاره</option>
+              <option value="rent_desc">بیشترین اجاره</option>
+              <option value="deposit_asc">کمترین ودیعه</option>
+              <option value="deposit_desc">بیشترین ودیعه</option>
+              <option value="effective_asc">کمترین هزینه مؤثر</option>
+              <option value="effective_desc">بیشترین هزینه مؤثر</option>
+            </optgroup>
+            <optgroup label="مشخصات ملک">
+              <option value="age_asc">کمترین سن بنا</option>
+              <option value="age_desc">بیشترین سن بنا</option>
+              <option value="size_desc">بیشترین متراژ</option>
+              <option value="size_asc">کمترین متراژ</option>
+            </optgroup>
+          </select>
+        </div>
+      </section>
+
+      <div class="result-line">
+        <strong id="result-count">۰ نتیجه</strong>
+        <span id="scan-state" role="status"></span>
+      </div>
+
+      <section class="listing-grid" id="listing-grid" aria-live="polite"></section>
+      <div class="empty-state" id="empty-state" hidden>
+        <strong>هنوز موردی برای نمایش نیست</strong>
+        <span>برای دریافت آگهی‌ها، «تازه‌سازی نتایج» را بزن.</span>
+      </div>
+    </main>
+
+    <template id="listing-template">
+      <article class="listing-card">
+        <div class="image-frame">
+          <img class="listing-image" alt="" loading="lazy" referrerpolicy="no-referrer">
+          <span class="photo-count"></span>
+          <span class="status-label"></span>
+        </div>
+        <div class="listing-body">
+          <div class="listing-heading">
+            <div>
+              <div class="listing-meta">
+                <p class="district"></p>
+                <time class="published-age"></time>
+              </div>
+              <h2 class="title"></h2>
+            </div>
+            <div class="score-disc"><b></b><small>از ۲۰</small></div>
+          </div>
+          <div class="personal-score" hidden></div>
+          <dl class="facts">
+            <div><dt>ودیعه</dt><dd class="deposit"></dd></div>
+            <div><dt>اجاره</dt><dd class="rent"></dd></div>
+            <div><dt>متراژ</dt><dd class="size"></dd></div>
+            <div><dt>سن بنا</dt><dd class="age"></dd></div>
+          </dl>
+          <div class="confidence-row">
+            <span class="trust"></span>
+            <span class="location-confidence"></span>
+          </div>
+          <div class="breakdown"></div>
+          <div class="signals">
+            <ul class="reasons"></ul>
+            <ul class="risks"></ul>
+            <ul class="personal-reasons"></ul>
+          </div>
+          <div class="card-actions">
+            <a class="open-link" target="_blank" rel="noreferrer">باز کردن در دیوار</a>
+            <a class="map-link icon-button" target="_blank" rel="noreferrer" title="نمایش پین تقریبی" aria-label="نمایش پین تقریبی">⌖</a>
+            <button class="feedback favorite icon-button" type="button" title="پسندیدم" aria-label="پسندیدم">☆</button>
+            <button class="feedback visit icon-button" type="button" title="برای بازدید مناسبه" aria-label="برای بازدید مناسبه">✓</button>
+            <button class="feedback reject icon-button" type="button" title="رد کردن" aria-label="رد کردن">×</button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <dialog class="app-dialog" id="feedback-dialog">
+      <form class="dialog-shell" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <small id="feedback-choice-label"></small>
+            <h2 id="feedback-listing-title"></h2>
+          </div>
+          <button class="icon-button dialog-close" value="cancel" aria-label="بستن" title="بستن" type="submit">×</button>
+        </div>
+        <fieldset>
+          <legend>دلیل‌های اصلی</legend>
+          <div class="reason-options" id="feedback-reasons"></div>
+        </fieldset>
+        <div class="dialog-actions">
+          <button class="secondary-button remove-feedback" id="remove-feedback" type="button" hidden>حذف نظر</button>
+          <button class="secondary-button" value="cancel" type="submit">انصراف</button>
+          <button class="primary-button" id="save-feedback" value="default" type="button">ثبت نظر</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="app-dialog comparison-dialog" id="comparison-dialog">
+      <div class="dialog-shell comparison-shell">
+        <div class="dialog-heading">
+          <div>
+            <small id="comparison-kind">مقایسه سلیقه</small>
+            <h2 id="comparison-question">کدام را برای بازدید انتخاب می‌کنی؟</h2>
+          </div>
+          <button class="icon-button dialog-close" id="close-comparison" aria-label="بستن" title="بستن" type="button">×</button>
+        </div>
+        <div class="comparison-grid" id="comparison-grid"></div>
+        <div class="dialog-actions">
+          <button class="secondary-button" id="skip-comparison" type="button">این دوتا نه</button>
+        </div>
+      </div>
+    </dialog>
+
+    <template id="comparison-template">
+      <article class="comparison-option">
+        <img class="comparison-image" alt="" referrerpolicy="no-referrer">
+        <span class="comparison-content">
+          <small class="comparison-district"></small>
+          <strong class="comparison-title"></strong>
+          <span class="comparison-facts"></span>
+          <span class="comparison-score"></span>
+          <span class="comparison-actions">
+            <a class="comparison-open" target="_blank" rel="noreferrer">باز کردن در دیوار</a>
+            <button class="comparison-choose" type="button">انتخاب این خانه</button>
+          </span>
+        </span>
+      </article>
+    </template>
+    <script src="/assets/app.js" defer></script>
+  </body>
+</html>

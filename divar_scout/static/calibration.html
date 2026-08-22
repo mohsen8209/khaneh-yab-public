@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>شناخت سلیقه | خانه‌یاب عمومی</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/account.css">
+    <link rel="stylesheet" href="/assets/calibration.css">
+  </head>
+  <body class="account-page calibration-page">
+    <header class="account-header calibration-header">
+      <a class="account-brand" href="/calibration" aria-label="خانه‌یاب عمومی">
+        <span aria-hidden="true">خ</span>
+        <div><strong>خانه‌یاب عمومی</strong><small id="calibration-user">شناخت سلیقه شخصی</small></div>
+      </a>
+      <button class="text-command danger-text" id="logout-button" type="button">خروج</button>
+    </header>
+
+    <main class="calibration-main">
+      <header class="calibration-intro">
+        <p>تنظیم اولیه سلیقه</p>
+        <h1>از بین هر دو خانه، یکی را انتخاب کن</h1>
+        <span>خانه‌ای را بزن که اگر همین امروز قصد تماس یا بازدید داشتی، ترجیحش می‌دادی. جواب درست یا غلطی وجود ندارد.</span>
+      </header>
+
+      <section class="calibration-progress" aria-label="پیشرفت شناخت سلیقه">
+        <div>
+          <strong id="progress-label">انتخاب ۱ از ۱۲</strong>
+          <small id="progress-detail">۱۲ انتخاب برای ساخت نتیجه اولیه</small>
+        </div>
+        <span id="progress-count">۰ از ۱۲</span>
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="12" aria-valuenow="0">
+          <i id="progress-fill"></i>
+        </div>
+      </section>
+
+      <section class="comparison-stage" id="comparison-stage" hidden aria-live="polite">
+        <div class="comparison-heading">
+          <div><small id="comparison-number">مقایسه ۱</small><h2>کدام خانه بیشتر به سلیقه‌ات می‌خورد؟</h2></div>
+          <span>شرایط اصلی هر دو خانه با معیارهای تو تطبیق داده شده است.</span>
+        </div>
+        <div class="calibration-grid" id="calibration-grid"></div>
+      </section>
+
+      <section class="calibration-state" id="loading-state" aria-live="polite">
+        <span class="state-spinner" aria-hidden="true"></span>
+        <strong id="loading-title">در حال انتخاب دو خانه مناسب...</strong>
+        <p id="loading-detail">آگهی‌های منطبق با معیارهایت را آماده می‌کنیم.</p>
+      </section>
+
+      <section class="calibration-state" id="waiting-state" hidden aria-live="polite">
+        <span class="state-icon" aria-hidden="true">↻</span>
+        <strong>برای مقایسه، آگهی تازه لازم داریم</strong>
+        <p id="waiting-detail">در حال تازه‌کردن آگهی‌های منطبق با معیارهای تو هستیم.</p>
+        <button class="primary-command" id="retry-button" type="button" hidden>تلاش دوباره</button>
+      </section>
+
+      <section class="calibration-state complete-state" id="complete-state" hidden aria-live="polite">
+        <span class="state-icon complete-icon" aria-hidden="true">✓</span>
+        <strong>شناخت اولیه سلیقه‌ات آماده شد</strong>
+        <p>نتایج با انتخاب‌های تو دوباره مرتب شدند. یادگیری داخل داشبورد هم ادامه پیدا می‌کند.</p>
+      </section>
+
+      <p class="calibration-error" id="calibration-error" hidden role="alert"></p>
+    </main>
+
+    <template id="home-option-template">
+      <article class="home-option">
+        <div class="home-photos" aria-label="تصاویر آگهی"></div>
+        <div class="home-body">
+          <div class="home-location"><span class="option-name"></span><strong class="home-district"></strong></div>
+          <h3 class="home-title"></h3>
+          <dl class="home-facts">
+            <div><dt>ودیعه</dt><dd data-fact="deposit"></dd></div>
+            <div><dt>اجاره</dt><dd data-fact="rent"></dd></div>
+            <div><dt>متراژ</dt><dd data-fact="size"></dd></div>
+            <div><dt>خواب</dt><dd data-fact="rooms"></dd></div>
+            <div><dt>سن بنا</dt><dd data-fact="age"></dd></div>
+            <div><dt>طبقه</dt><dd data-fact="floor"></dd></div>
+          </dl>
+          <div class="home-amenities" aria-label="امکانات خانه"></div>
+          <div class="home-actions">
+            <a class="open-divar" target="_blank" rel="noopener noreferrer">باز کردن در دیوار</a>
+            <button class="choose-home" type="button">این خانه را انتخاب می‌کنم</button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="/assets/calibration.js" defer></script>
+  </body>
+</html>

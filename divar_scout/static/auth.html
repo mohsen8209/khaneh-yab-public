@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ورود | خانه‌یاب عمومی</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/account.css">
+  </head>
+  <body class="account-page">
+    <header class="account-header">
+      <a class="account-brand" href="/login" aria-label="خانه‌یاب عمومی">
+        <span aria-hidden="true">خ</span>
+        <strong>خانه‌یاب عمومی</strong>
+      </a>
+      <small>دسترسی کنترل‌شده به پیشنهادهای شخصی خانه</small>
+    </header>
+
+    <main class="auth-main">
+      <section class="auth-tool" aria-labelledby="auth-title">
+        <div class="auth-heading">
+          <p id="auth-eyebrow">ورود امن</p>
+          <h1 id="auth-title">ورود به حساب</h1>
+          <span id="auth-subtitle">نتایج و یادگیری سلیقه فقط در حساب خودت نگه‌داری می‌شود.</span>
+        </div>
+
+        <form id="auth-form" novalidate>
+          <label class="field register-only" hidden>
+            <span>نام نمایشی</span>
+            <input id="display-name" name="display_name" type="text" minlength="2" maxlength="60" autocomplete="name" placeholder="مثلاً محسن رضایی">
+          </label>
+          <label class="field">
+            <span>نام کاربری</span>
+            <input id="username" name="username" type="text" required minlength="3" maxlength="32" autocomplete="username" autocapitalize="none" spellcheck="false" dir="ltr" placeholder="mohsen.r">
+            <small class="register-only" hidden>حروف انگلیسی، عدد، نقطه، خط تیره یا زیرخط</small>
+          </label>
+          <label class="field">
+            <span>رمز عبور</span>
+            <input id="password" name="password" type="password" required minlength="10" maxlength="128" autocomplete="current-password" dir="ltr">
+            <small class="register-only" hidden>حداقل ۱۰ نویسه، شامل حرف و عدد</small>
+          </label>
+          <label class="field register-only" hidden>
+            <span>تکرار رمز عبور</span>
+            <input id="password-confirmation" type="password" minlength="10" maxlength="128" autocomplete="new-password" dir="ltr">
+          </label>
+          <div class="form-message" id="form-message" role="alert" hidden></div>
+          <button class="primary-command" id="submit-button" type="submit">ورود</button>
+        </form>
+
+        <div class="auth-switch">
+          <span id="switch-copy">حساب نداری؟</span>
+          <a id="switch-link" href="/register">ساخت حساب</a>
+        </div>
+      </section>
+    </main>
+    <script src="/assets/auth.js" defer></script>
+  </body>
+</html>

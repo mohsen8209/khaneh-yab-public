@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>مدیریت کاربران | خانه‌یاب عمومی</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/account.css">
+  </head>
+  <body class="admin-page">
+    <header class="admin-header">
+      <div class="account-brand">
+        <span aria-hidden="true">خ</span>
+        <div>
+          <strong>مدیریت خانه‌یاب</strong>
+          <small id="admin-identity">حساب روت‌ادمین</small>
+        </div>
+      </div>
+      <nav class="admin-nav" aria-label="عملیات حساب">
+        <a href="/">داشبورد خانه‌ها</a>
+        <button class="text-command" id="password-button" type="button">تغییر رمز</button>
+        <button class="text-command danger-text" id="logout-button" type="button">خروج</button>
+      </nav>
+    </header>
+
+    <main class="admin-main">
+      <div class="admin-title-row">
+        <div>
+          <p>کنترل دسترسی</p>
+          <h1>کاربران</h1>
+        </div>
+        <button class="refresh-command" id="refresh-users" type="button" title="تازه‌سازی فهرست" aria-label="تازه‌سازی فهرست">↻</button>
+      </div>
+
+      <section class="admin-stats" aria-label="آمار وضعیت حساب‌ها">
+        <button class="stat-filter active" data-status="pending" type="button"><strong id="stat-pending">۰</strong><span>در انتظار</span></button>
+        <button class="stat-filter" data-status="approved" type="button"><strong id="stat-approved">۰</strong><span>تأییدشده</span></button>
+        <button class="stat-filter" data-status="suspended" type="button"><strong id="stat-suspended">۰</strong><span>تعلیق‌شده</span></button>
+        <button class="stat-filter" data-status="rejected" type="button"><strong id="stat-rejected">۰</strong><span>ردشده</span></button>
+        <button class="stat-filter" data-status="" type="button"><strong id="stat-total">۰</strong><span>همه حساب‌ها</span></button>
+      </section>
+
+      <section class="user-directory" aria-labelledby="directory-title">
+        <div class="directory-toolbar">
+          <div>
+            <h2 id="directory-title">درخواست‌های عضویت</h2>
+            <small id="directory-count">۰ حساب</small>
+          </div>
+          <label class="admin-search">
+            <span>جستجو</span>
+            <input id="user-search" type="search" placeholder="نام یا نام کاربری">
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>کاربر</th>
+                <th>وضعیت</th>
+                <th>تاریخ عضویت</th>
+                <th>آخرین ورود</th>
+                <th>نشست فعال</th>
+                <th><span class="sr-only">عملیات</span></th>
+              </tr>
+            </thead>
+            <tbody id="user-rows"></tbody>
+          </table>
+        </div>
+        <div class="directory-empty" id="directory-empty" hidden>کاربری با این وضعیت پیدا نشد.</div>
+      </section>
+      <div class="admin-message" id="admin-message" role="status"></div>
+    </main>
+
+    <dialog id="password-dialog">
+      <form class="password-form" id="password-form">
+        <div>
+          <h2>تغییر رمز عبور</h2>
+          <p>بعد از تغییر رمز باید دوباره وارد شوی.</p>
+        </div>
+        <label class="sr-only" for="password-username">نام کاربری</label>
+        <input class="sr-only" id="password-username" name="username" type="text" autocomplete="username" tabindex="-1">
+        <label class="field"><span>رمز فعلی</span><input id="current-password" type="password" autocomplete="current-password" required></label>
+        <label class="field"><span>رمز جدید</span><input id="new-password" type="password" autocomplete="new-password" minlength="10" required></label>
+        <div class="form-message" id="password-message" role="alert" hidden></div>
+        <div class="dialog-commands">
+          <button class="text-command" id="close-password" type="button">انصراف</button>
+          <button class="primary-command" type="submit">ثبت رمز جدید</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="/assets/admin.js" defer></script>
+  </body>
+</html>

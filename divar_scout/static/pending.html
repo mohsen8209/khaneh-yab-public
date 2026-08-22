@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>انتظار تأیید | خانه‌یاب عمومی</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/account.css">
+  </head>
+  <body class="account-page">
+    <header class="account-header">
+      <a class="account-brand" href="/pending">
+        <span aria-hidden="true">خ</span>
+        <strong>خانه‌یاب عمومی</strong>
+      </a>
+      <button class="text-command" id="logout-button" type="button">خروج از حساب</button>
+    </header>
+    <main class="pending-main">
+      <section class="pending-status" aria-labelledby="pending-title">
+        <span class="status-symbol" aria-hidden="true">…</span>
+        <p>درخواست ثبت شد</p>
+        <h1 id="pending-title">حساب <span id="pending-name"></span> در انتظار تأیید است</h1>
+        <span>بعد از تأیید مدیر، همین صفحه مستقیماً وارد خانه‌یاب می‌شود.</span>
+        <div class="pending-actions">
+          <button class="primary-command" id="refresh-status" type="button">بررسی وضعیت</button>
+          <small id="pending-message" role="status"></small>
+        </div>
+      </section>
+    </main>
+    <script src="/assets/pending.js" defer></script>
+  </body>
+</html>

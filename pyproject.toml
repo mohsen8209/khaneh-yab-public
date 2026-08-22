@@ -1,0 +1,18 @@
+[project]
+name = "khaneh-yab-public"
+version = "0.1.0"
+description = "Independent foundation for a public Divar house finder"
+requires-python = ">=3.11"
+dependencies = [
+  "scikit-learn>=1.5,<2",
+]
+
+[project.scripts]
+khaneh-yab-public = "divar_scout.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["divar_scout*"]
+exclude = ["data*", "output*", "scripts*", "tests*"]
+
+[tool.unittest]
+start-directory = "tests"

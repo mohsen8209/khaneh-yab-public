@@ -1,0 +1,66 @@
+{
+  "instance": {
+    "id": "public-house-finder",
+    "mode": "public-development",
+    "data_scope": "isolated",
+    "expected_root_name": "public-house-finder",
+    "expected_dashboard_port": 8766,
+    "personal_data_imported": false
+  },
+  "search": {
+    "url": "https://divar.ir/s/tehran/rent-apartment",
+    "scope": "shared-tehran-rental-inventory",
+    "extra_district_ids": [],
+    "include_stretch_budget": false
+  },
+  "profile": {
+    "scope": "neutral-shared-inventory-profile",
+    "ideal_deposit": 1000000000,
+    "ideal_rent": 100000000,
+    "hard_max_deposit": 100000000000,
+    "hard_max_rent": 10000000000,
+    "stretch_max_deposit": 100000000000,
+    "stretch_max_rent": 10000000000,
+    "deposit_to_monthly_rate": 0.03,
+    "min_size": 1,
+    "min_rooms": 0,
+    "parking_required": false,
+    "elevator_required": false,
+    "balcony_preferred": false,
+    "shared_housing_allowed": false
+  },
+  "scoring": {
+    "minimum_alert_score": 15.5,
+    "minimum_exceptional_budget_score": 18.0,
+    "minimum_neighborhood_score": 0,
+    "minimum_alert_value_score": 3.5,
+    "minimum_alert_property_score": 2.0,
+    "minimum_trust": 75,
+    "minimum_location_confidence": 70
+  },
+  "scan": {
+    "detail_limit_per_run": 35,
+    "request_delay_seconds": 1.5,
+    "poll_interval_seconds": 600,
+    "timeout_seconds": 20
+  },
+  "notifications": {
+    "provider": "ntfy",
+    "enabled": false,
+    "server": "https://ntfy.sh",
+    "topic": "khane-yab-public-b2385ca4e2ab4be5b6d1a1c4",
+    "no_cache": true,
+    "notify_existing_on_first_run": false
+  },
+  "personalization": {
+    "enabled": true,
+    "activation_signals": 12,
+    "full_strength_signals": 40,
+    "max_adjustment": 2.0,
+    "regularization_c": 0.3
+  },
+  "dashboard": {
+    "host": "127.0.0.1",
+    "port": 8766
+  }
+}

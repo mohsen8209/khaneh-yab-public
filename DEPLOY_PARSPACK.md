@@ -1,0 +1,82 @@
+# استقرار خانه‌یاب عمومی روی PaaS پارس‌پک
+
+این پروژه برای اجرای مستقیم با Python PaaS آماده است. معماری production عمداً یک Pod،
+یک پردازش Python و یک SQLite روی Volume دائمی دارد. داشبورد و اسکن زمان‌بندی‌شده در
+همان پردازش اجرا می‌شوند و از یک قفل اسکن مشترک استفاده می‌کنند.
+
+## قرارداد قطعی سرویس
+
+- Runtime: Python 3.11 یا جدیدتر
+- Entry point: `app.py`
+- Context directory: `.`
+- Application port: `8766`
+- Health check: `/healthz`
+- Replica/Pod count: دقیقاً `1`
+- Persistent volume mount: `/data`
+- Database: `/data/divar_scout.sqlite3`
+
+SQLite برای این نسخه به سرویس دیتابیس جدا نیاز ندارد. افزایش Pod به بیشتر از یک، بدون
+مهاجرت به PostgreSQL مجاز نیست.
+
+## متغیرهای محیطی
+
+این مقادیر را به‌صورت ENV معمولی تعریف کنید:
+
+| نام | مقدار |
+|---|---|
+| `KHANEYAB_RUNTIME` | `paas` |
+| `KHANEYAB_HOST` | `0.0.0.0` |
+| `KHANEYAB_PORT` | `8766` |
+| `KHANEYAB_DATA_DIR` | `/data` |
+| `KHANEYAB_WATCH_ENABLED` | `true` |
+| `KHANEYAB_ADMIN_USERNAME` | نام کاربری لاتین مدیر |
+| `KHANEYAB_ADMIN_DISPLAY_NAME` | نام نمایشی مدیر |
+
+`KHANEYAB_ADMIN_PASSWORD` را فقط به‌صورت Secret و با رمز حداقل ۱۰ نویسه شامل حرف و
+عدد تعریف کنید. در اولین اجرا و تنها در صورت نبودن مدیر ساخته می‌شود. پس از ورود موفق
+مدیر، Secret بوت‌استرپ را از محیط حذف کنید؛ ادمین داخل دیتابیس دائمی باقی می‌ماند.
+
+برنامه در حالت PaaS بدون مسیر صریح دیتابیس دائمی عمداً اجرا نمی‌شود تا اطلاعات کاربران
+روی فایل‌سیستم موقت کانتینر قرار نگیرد.
+
+## دیتابیس تازه یا انتقال دیتابیس فعلی
+
+برای شروع تازه، Volume خالی کافی است و Schema خودکار ساخته می‌شود.
+
+برای انتقال امن کاربران، یادگیری و آگهی‌های فعلی، فایل SQLite را داخل Git قرار ندهید.
+ابتدا در کامپیوتر خود یک snapshot سازگار بسازید:
+
+```powershell
+cd C:\Users\Mohsen\Desktop\divar\public-house-finder
+python scripts\backup_database.py
+```
+
+خروجی در `output/deploy/divar_scout.sqlite3` ساخته و integrity آن بررسی می‌شود. اپلیکیشن
+PaaS را متوقف کنید، فایل را از File Manager روی مسیر
+`/data/divar_scout.sqlite3` بارگذاری کنید و سپس اپلیکیشن را روشن کنید.
+
+## گیت و استقرار
+
+مخزن را Private نگه دارید. `.gitignore` دیتابیس، WAL، لاگ، خروجی تست، محیط مجازی و
+فایل‌های Secret را حذف می‌کند. پیش از هر push اجرا کنید:
+
+```powershell
+python scripts/update_architecture.py --check
+python -m unittest discover -s tests -v
+git status --short
+```
+
+در پنل پارس‌پک، Python را انتخاب کنید، منبع را با OAuth به مخزن خصوصی GitHub و branch
+`main` وصل کنید، Volume را روی `/data` بسازید و مقادیر این سند را عیناً وارد کنید.
+پس از اولین استقرار، Webhook مربوط به branch `main` را برای deploy خودکار pushها فعال کنید.
+
+## کنترل بعد از استقرار
+
+1. `/healthz` باید پاسخ `{"ok": true}` بدهد.
+2. در Logs باید پیام شروع داشبورد و نتیجه اسکن پس‌زمینه دیده شود.
+3. مدیر باید بتواند وارد `/admin` شود.
+4. یک ثبت‌نام آزمایشی باید pending بماند تا مدیر آن را تأیید کند.
+5. با restart سرویس، حساب‌ها و آگهی‌ها باید باقی بمانند.
+
+اگر Build موفق بود ولی سایت باز نشد، اول host و port را کنترل کنید. اگر برنامه با خطای
+persistent volume متوقف شد، Volume یا `KHANEYAB_DATA_DIR=/data` تنظیم نشده است.

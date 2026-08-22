@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>تنظیم جست‌وجو | خانه‌یاب عمومی</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/account.css">
+    <link rel="stylesheet" href="/assets/vendor/leaflet.css">
+    <link rel="stylesheet" href="/assets/setup.css">
+  </head>
+  <body class="account-page">
+    <header class="account-header setup-header">
+      <a class="account-brand" href="/setup" aria-label="خانه‌یاب عمومی">
+        <span aria-hidden="true">خ</span>
+        <div><strong>خانه‌یاب عمومی</strong><small id="setup-user">پروفایل جست‌وجوی شخصی</small></div>
+      </a>
+      <button class="text-command danger-text" id="logout-button" type="button">خروج</button>
+    </header>
+
+    <main class="setup-main">
+      <header class="setup-title">
+        <p>تنظیم دقیق جست‌وجو</p>
+        <h1>دنبال چه خانه‌ای هستی؟</h1>
+        <span>بین همه اجاره‌آپارتمان‌های تهران می‌گردیم؛ پاسخ‌های تو مشخص می‌کنند چه چیزی حذف شود و چه خانه‌ای بالاتر بیاید.</span>
+      </header>
+
+      <ol class="setup-progress" aria-label="مراحل تنظیم جست‌وجو">
+        <li class="active" data-progress="1"><b>۱</b><span>شرایط خانه</span></li>
+        <li data-progress="2"><b>۲</b><span>بازبینی</span></li>
+      </ol>
+
+      <form id="setup-form" novalidate>
+        <section class="setup-step" data-step="1" aria-labelledby="criteria-title">
+          <div class="step-heading">
+            <small>مرحله اول</small>
+            <h2 id="criteria-title">شرایط دقیق خانه</h2>
+            <p>موارد ستاره‌دار برای ساخت فیلتر و رتبه‌بندی شخصی تو لازم‌اند.</p>
+          </div>
+
+          <section class="question-band" aria-labelledby="budget-title">
+            <div class="band-heading"><h3 id="budget-title">بودجه و انعطاف</h3><p>مبالغ را به میلیون تومان وارد کن.</p></div>
+            <div class="field-grid four">
+              <label class="setup-field"><span>ودیعه ایده‌آل *</span><input id="ideal-deposit" type="number" min="0" step="10" required inputmode="numeric"><small>مقداری که ترجیح می‌دهی</small></label>
+              <label class="setup-field"><span>حداکثر قطعی ودیعه *</span><input id="hard-deposit" type="number" min="0" step="10" required inputmode="numeric"><small>بالاتر از این فقط در حالت استثنایی</small></label>
+              <label class="setup-field"><span>اجاره ایده‌آل *</span><input id="ideal-rent" type="number" min="0" step="1" required inputmode="numeric"><small>اجاره ماهانه مطلوب</small></label>
+              <label class="setup-field"><span>حداکثر قطعی اجاره *</span><input id="hard-rent" type="number" min="0" step="1" required inputmode="numeric"><small>سقف عادی ماهانه</small></label>
+            </div>
+            <label class="binary-control"><input id="exceptional-budget" type="checkbox"><span><b>برای کیس واقعاً استثنایی کمی بالاتر را هم بررسی کن</b><small>عبور از سقف قطعی فقط برای موارد بسیار قوی مجاز می‌شود.</small></span></label>
+            <div class="field-grid two" id="stretch-fields" hidden>
+              <label class="setup-field"><span>نهایت ودیعه استثنایی *</span><input id="stretch-deposit" type="number" min="0" step="10" inputmode="numeric"></label>
+              <label class="setup-field"><span>نهایت اجاره استثنایی *</span><input id="stretch-rent" type="number" min="0" step="1" inputmode="numeric"></label>
+            </div>
+          </section>
+
+          <section class="question-band" aria-labelledby="property-title">
+            <div class="band-heading"><h3 id="property-title">مشخصات ملک</h3><p>حداقل‌ها خط قرمز و مقدار ایده‌آل برای امتیازدهی است.</p></div>
+            <div class="field-grid four">
+              <label class="setup-field"><span>حداقل متراژ *</span><input id="min-size" type="number" min="20" max="1000" required inputmode="numeric"></label>
+              <label class="setup-field"><span>متراژ ایده‌آل *</span><input id="ideal-size" type="number" min="20" max="1000" required inputmode="numeric"></label>
+              <label class="setup-field"><span>حداکثر متراژ</span><input id="max-size" type="number" min="20" max="1000" inputmode="numeric"><small>در صورت بی‌اهمیت بودن خالی بگذار</small></label>
+              <label class="setup-field"><span>حداقل خواب *</span><select id="min-rooms" required><option value="">انتخاب کن</option><option value="0">بدون خواب</option><option value="1">یک خواب</option><option value="2">دو خواب</option><option value="3">سه خواب</option><option value="4">چهار خواب</option><option value="5">پنج یا بیشتر</option></select></label>
+              <label class="setup-field"><span>حداکثر خواب</span><select id="max-rooms"><option value="">مهم نیست</option><option value="0">بدون خواب</option><option value="1">یک خواب</option><option value="2">دو خواب</option><option value="3">سه خواب</option><option value="4">چهار خواب</option><option value="5">پنج یا بیشتر</option></select></label>
+              <label class="setup-field"><span>سن بنای ایده‌آل</span><input id="ideal-age" type="number" min="0" max="100" inputmode="numeric"><small>مثلاً حداکثر ۱۰ سال</small></label>
+              <label class="setup-field"><span>حداکثر سن قابل قبول</span><input id="hard-age" type="number" min="0" max="100" inputmode="numeric"></label>
+              <label class="setup-field"><span>حداکثر طبقات ساختمان</span><input id="max-building-floors" type="number" min="1" max="100" inputmode="numeric"><small>اگر تراکم ساختمان مهم نیست خالی بگذار</small></label>
+              <label class="setup-field"><span>حداکثر واحد در هر طبقه</span><input id="max-units-per-floor" type="number" min="1" max="50" inputmode="numeric"><small>برای ساختمان‌های خلوت‌تر</small></label>
+            </div>
+            <div class="field-grid two compact-row">
+              <label class="setup-field"><span>حداقل طبقه</span><input id="min-floor" type="number" min="-5" max="100" inputmode="numeric"><small>همکف را صفر وارد کن</small></label>
+              <label class="setup-field"><span>حداکثر طبقه</span><input id="max-floor" type="number" min="-5" max="100" inputmode="numeric"><small>اگر مهم نیست خالی بگذار</small></label>
+            </div>
+          </section>
+
+          <section class="question-band" aria-labelledby="amenities-title">
+            <div class="band-heading"><h3 id="amenities-title">امکانات</h3><p>«الزامی» نبودن ویژگی را به خط قرمز تبدیل می‌کند؛ «مزیت» فقط امتیاز اضافه می‌دهد.</p></div>
+            <div class="field-grid four">
+              <label class="setup-field"><span>پارکینگ خودرو *</span><select id="parking" required><option value="">انتخاب کن</option><option value="required">الزامی</option><option value="preferred">مزیت است</option><option value="irrelevant">مهم نیست</option></select></label>
+              <label class="setup-field"><span>آسانسور *</span><select id="elevator" required><option value="">انتخاب کن</option><option value="required">الزامی</option><option value="preferred">مزیت است</option><option value="irrelevant">مهم نیست</option></select></label>
+              <label class="setup-field"><span>انباری *</span><select id="storage" required><option value="">انتخاب کن</option><option value="required">الزامی</option><option value="preferred">مزیت است</option><option value="irrelevant">مهم نیست</option></select></label>
+              <label class="setup-field"><span>بالکن *</span><select id="balcony" required><option value="">انتخاب کن</option><option value="required">الزامی</option><option value="preferred">مزیت است</option><option value="irrelevant">مهم نیست</option></select></label>
+            </div>
+          </section>
+
+          <section class="question-band" aria-labelledby="location-title">
+            <div class="band-heading"><h3 id="location-title">کجای تهران؟</h3><p>محله با ۸ امتیاز از ۲۰، بیشترین سهم نمره خانه را دارد.</p></div>
+            <fieldset class="district-scope district-choice"><legend>محدوده جست‌وجو *</legend><label><input type="radio" name="district-scope" value="all" checked><span><b>همه محله‌های تهران</b><small>در سراسر شهر می‌گردیم و خانه‌های محله‌های بهتر بالاتر نمایش داده می‌شوند.</small></span></label><label><input type="radio" name="district-scope" value="selected"><span><b>فقط محله‌های مشخص</b><small>نتیجه را به محله‌هایی که خودت انتخاب می‌کنی محدود می‌کنیم.</small></span></label></fieldset>
+            <div class="district-picker" id="district-picker" hidden>
+              <div class="district-picker-head">
+                <label class="district-search"><span>جست‌وجوی محله</span><input id="district-search" type="search" placeholder="نام محله را بنویس" autocomplete="off"></label>
+                <div class="district-view-tabs" role="tablist" aria-label="روش انتخاب محله">
+                  <button class="district-view-tab active" id="district-list-tab" type="button" role="tab" aria-selected="true" aria-controls="district-list-panel" data-district-view="list">فهرست</button>
+                  <button class="district-view-tab" id="district-map-tab" type="button" role="tab" aria-selected="false" aria-controls="district-map-panel" data-district-view="map">نقشه</button>
+                </div>
+              </div>
+              <div class="district-selection-bar">
+                <span class="selected-count" id="district-count" aria-live="polite">۰ محله انتخاب شده</span>
+                <button class="district-clear" id="district-clear" type="button" hidden>پاک‌کردن انتخاب‌ها</button>
+              </div>
+              <div id="district-list-panel" role="tabpanel" aria-labelledby="district-list-tab">
+                <div class="district-list" id="district-list"></div>
+              </div>
+              <div class="district-map-panel" id="district-map-panel" role="tabpanel" aria-labelledby="district-map-tab" hidden>
+                <div class="district-map-toolbar">
+                  <span>۴۵۳ محله با موقعیت رسمی دیوار</span>
+                  <button id="district-map-reset" type="button">نمایش همه تهران</button>
+                </div>
+                <div class="district-map" id="district-map" tabindex="0" aria-label="نقشه انتخاب محله‌های تهران"></div>
+                <div class="district-map-status" id="district-map-status" role="status" hidden></div>
+                <div class="district-map-legend" aria-label="راهنمای رنگ کیفیت محله">
+                  <span><i class="excellent"></i>عالی</span>
+                  <span><i class="good"></i>خوب</span>
+                  <span><i class="average"></i>معمولی</span>
+                  <span><i class="weak"></i>کم‌امتیاز</span>
+                  <span><i class="selected"></i>انتخاب‌شده</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="form-message" id="criteria-message" role="alert" hidden></div>
+          <div class="step-actions"><button class="primary-command" id="criteria-next" type="button">بازبینی نهایی</button></div>
+        </section>
+
+        <section class="setup-step" data-step="2" aria-labelledby="review-title" hidden>
+          <div class="step-heading"><small>مرحله دوم</small><h2 id="review-title">همه‌چیز درست است؟</h2><p>بعد از ثبت، فقط آگهی‌های هماهنگ با این پروفایل برای حساب تو رتبه‌بندی می‌شوند.</p></div>
+          <div class="review-list" id="review-list"></div>
+          <div class="form-message" id="save-message" role="alert" hidden></div>
+          <div class="step-actions split"><button class="text-command" data-back="1" type="button">اصلاح پاسخ‌ها</button><button class="primary-command" id="save-profile" type="submit">ثبت و دیدن خانه‌ها</button></div>
+        </section>
+      </form>
+    </main>
+    <script src="/assets/vendor/leaflet.js" defer></script>
+    <script src="/assets/setup.js" defer></script>
+  </body>
+</html>
