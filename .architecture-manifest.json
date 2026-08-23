@@ -2,7 +2,7 @@
   ".env.example": "41363d01a44a316a",
   ".gitignore": "f198c9545c8d46d8",
   "AGENTS.md": "a0f393a38d1e47f7",
-  "DEPLOY_PARSPACK.md": "4ceff9057f9a1828",
+  "DEPLOY_PARSPACK.md": "11a037ce7f02499d",
   "INSTANCE.md": "8007195712adfe55",
   "app.py": "e3a3379060b1ad23",
   "config.json": "ff192c0a81351291",
@@ -41,7 +41,7 @@
   "scan_once.cmd": "b43845b5ac0746e3",
   "scripts/backup_database.py": "8644f577319332f1",
   "scripts/build_neighborhood_atlas.py": "e862554c0d6cdb2b",
-  "scripts/update_architecture.py": "9a96e915a11f46f1",
+  "scripts/update_architecture.py": "32018fa58c2e5cf7",
   "start_dashboard.cmd": "778d799b9a5d1bd1",
   "watch.cmd": "8710a28df7c496aa"
 }

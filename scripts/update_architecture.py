@@ -494,10 +494,13 @@ def check_current() -> tuple[bool, str]:
 
 def write_artifacts() -> None:
     manifest = source_manifest()
-    ARCHITECTURE_PATH.write_text(render_document(manifest), encoding="utf-8")
+    ARCHITECTURE_PATH.write_text(
+        render_document(manifest), encoding="utf-8", newline="\n"
+    )
     MANIFEST_PATH.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 
