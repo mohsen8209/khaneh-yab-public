@@ -5,6 +5,7 @@ import threading
 from collections.abc import Mapping
 from pathlib import Path
 
+from .auth import AuthError
 from .config import AppConfig, PAAS_RUNTIME, database_path, load_config
 from .dashboard import DashboardApp, serve
 from .db import Database
@@ -57,7 +58,14 @@ def bootstrap_admin(
         return False
     username = environment.get("KHANEYAB_ADMIN_USERNAME", "root_admin")
     display_name = environment.get("KHANEYAB_ADMIN_DISPLAY_NAME", "مدیر اصلی")
-    user = app.auth.create_admin(username, display_name, password)
+    try:
+        user = app.auth.create_admin(username, display_name, password)
+    except AuthError:
+        print(
+            "Bootstrap admin not created: invalid KHANEYAB_ADMIN_* configuration",
+            flush=True,
+        )
+        return False
     print(f"Bootstrap admin created: @{user.username}", flush=True)
     return True
 

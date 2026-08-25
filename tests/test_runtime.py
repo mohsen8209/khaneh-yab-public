@@ -67,6 +67,23 @@ class RuntimeTests(unittest.TestCase):
             self.assertTrue(app.auth.has_admin())
             self.assertEqual(app.auth.admin_stats()["approved"], 1)
 
+    def test_invalid_bootstrap_password_does_not_stop_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "runtime.sqlite3")
+            app = DashboardApp(load_config(environment={}), database=database)
+
+            created = bootstrap_admin(
+                app,
+                {
+                    "KHANEYAB_ADMIN_USERNAME": "cloud_admin",
+                    "KHANEYAB_ADMIN_DISPLAY_NAME": "Cloud Admin",
+                    "KHANEYAB_ADMIN_PASSWORD": "1234567890",
+                },
+            )
+
+            self.assertFalse(created)
+            self.assertFalse(app.auth.has_admin())
+
     def test_background_scan_uses_dashboard_lock_and_stops(self) -> None:
         stop_event = threading.Event()
 
