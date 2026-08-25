@@ -3,6 +3,7 @@ const state = {
   pair: null,
   scanAttempted: false,
   submitting: false,
+  pollingScan: false,
 };
 
 const fa = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 });
@@ -14,7 +15,13 @@ async function api(path, options = {}) {
     headers["X-CSRF-Token"] = state.auth.csrf_token;
   }
   const response = await fetch(path, { ...options, method, headers, cache: "no-store" });
-  const data = await response.json();
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error("پاسخ سرور کامل نبود؛ چند ثانیه دیگر دوباره تلاش کن");
+  }
   if (response.status === 401) {
     location.replace("/login");
     throw new Error("نشست ورود پایان یافته است");
@@ -30,6 +37,8 @@ async function api(path, options = {}) {
   if (!response.ok) throw new Error(data.error || "درخواست انجام نشد");
   return data;
 }
+
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 function money(value) {
   if (value === null || value === undefined) return "نامشخص";
@@ -202,11 +211,32 @@ async function prepareInventory(result) {
   state.scanAttempted = true;
   detail.textContent = "در حال اسکن آگهی‌های تهران و آماده‌کردن گزینه‌های منطبق با معیارهای تو هستیم...";
   try {
-    await api("/api/scan", { method: "POST", body: "{}" });
+    const scan = await api("/api/scan", { method: "POST", body: "{}" });
+    await waitForScan(scan);
     await loadComparison();
   } catch (error) {
     detail.textContent = error.message;
     retry.hidden = false;
+  }
+}
+
+async function waitForScan(scan) {
+  if (!scan?.running && !scan?.accepted) return scan;
+  if (state.pollingScan) return null;
+  state.pollingScan = true;
+  const detail = document.querySelector("#waiting-detail");
+  try {
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      const delay = Math.max(3, Number(scan?.poll_after_seconds || 6));
+      await wait(delay * 1000);
+      const status = await api("/api/scan/status");
+      if (status.last_error) throw new Error(status.last_error);
+      if (!status.running) return status.last_result || status;
+      detail.textContent = "هنوز در حال بررسی آگهی‌ها هستیم؛ بعد از آماده شدن، مقایسه‌ها خودکار نمایش داده می‌شوند...";
+    }
+    throw new Error("اسکن طولانی شد؛ کمی بعد دوباره تلاش کن");
+  } finally {
+    state.pollingScan = false;
   }
 }
 

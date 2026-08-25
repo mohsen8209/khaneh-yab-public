@@ -1,8 +1,17 @@
 let csrfToken = "";
 
+async function readJson(response) {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error("پاسخ سرور کامل نبود؛ چند ثانیه دیگر دوباره تلاش کن");
+  }
+}
+
 async function authState() {
   const response = await fetch("/api/auth/me", { cache: "no-store" });
-  const data = await response.json();
+  const data = await readJson(response);
   if (!data.authenticated) {
     location.replace("/login");
     return null;
@@ -17,11 +26,17 @@ async function authState() {
 }
 
 document.querySelector("#refresh-status").addEventListener("click", async (event) => {
-  event.currentTarget.disabled = true;
+  const button = event.currentTarget;
+  button.disabled = true;
   document.querySelector("#pending-message").textContent = "در حال بررسی…";
-  const state = await authState();
-  if (state) document.querySelector("#pending-message").textContent = "هنوز در انتظار تأیید مدیر است.";
-  event.currentTarget.disabled = false;
+  try {
+    const state = await authState();
+    if (state) document.querySelector("#pending-message").textContent = "هنوز در انتظار تأیید مدیر است.";
+  } catch (error) {
+    document.querySelector("#pending-message").textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 });
 
 document.querySelector("#logout-button").addEventListener("click", async () => {
@@ -33,4 +48,6 @@ document.querySelector("#logout-button").addEventListener("click", async () => {
   location.replace("/login");
 });
 
-authState();
+authState().catch((error) => {
+  document.querySelector("#pending-message").textContent = error.message;
+});

@@ -47,7 +47,13 @@ async function api(path, options = {}) {
     headers,
     cache: "no-store",
   });
-  const data = await response.json();
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error("پاسخ سرور کامل نبود؛ چند ثانیه دیگر دوباره تلاش کن");
+  }
   if (response.status === 401) {
     location.replace("/login");
     throw new Error("نشست ورود پایان یافته است");
@@ -63,6 +69,8 @@ async function api(path, options = {}) {
   if (!response.ok) throw new Error(data.error || "خطای نامشخص");
   return data;
 }
+
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 async function load() {
   const auth = await api("/api/auth/me");
@@ -553,14 +561,9 @@ document.querySelector("#scan-button").addEventListener("click", async (event) =
   button.disabled = true;
   document.querySelector("#scan-state").textContent = "اسکن در حال اجراست";
   try {
-    const result = await api("/api/scan", { method: "POST", body: JSON.stringify({ detail_limit: 20 }) });
-    const expired = result.expired_count
-      ? ` · ${fa.format(result.expired_count)} آگهی منقضی حذف شد`
-      : "";
-    const filtered = result.filtered_count
-      ? ` · ${fa.format(result.filtered_count)} اسپم الک شد`
-      : "";
-    document.querySelector("#scan-state").textContent = `${fa.format(result.detail_count)} آگهی تازه بررسی شد${filtered}${expired}`;
+    const scan = await api("/api/scan", { method: "POST", body: JSON.stringify({ detail_limit: 20 }) });
+    const result = await waitForScan(scan);
+    showScanResult(result);
     await load();
   } catch (error) {
     document.querySelector("#scan-state").textContent = error.message;
@@ -568,6 +571,30 @@ document.querySelector("#scan-button").addEventListener("click", async (event) =
     button.disabled = false;
   }
 });
+
+async function waitForScan(scan) {
+  if (!scan?.running && !scan?.accepted) return scan;
+  for (let attempt = 0; attempt < 90; attempt += 1) {
+    const delay = Math.max(3, Number(scan?.poll_after_seconds || 6));
+    await wait(delay * 1000);
+    const status = await api("/api/scan/status");
+    if (status.last_error) throw new Error(status.last_error);
+    if (!status.running) return status.last_result || status;
+    document.querySelector("#scan-state").textContent = "اسکن هنوز در حال آماده‌سازی نتایج است";
+  }
+  throw new Error("اسکن طولانی شد؛ کمی بعد دوباره تلاش کن");
+}
+
+function showScanResult(result) {
+  const detailCount = Number(result?.detail_count || 0);
+  const expired = result?.expired_count
+    ? ` · ${fa.format(result.expired_count)} آگهی منقضی حذف شد`
+    : "";
+  const filtered = result?.filtered_count
+    ? ` · ${fa.format(result.filtered_count)} اسپم الک شد`
+    : "";
+  document.querySelector("#scan-state").textContent = `${fa.format(detailCount)} آگهی تازه بررسی شد${filtered}${expired}`;
+}
 
 document.querySelector("#save-feedback").addEventListener("click", () => saveFeedback(state.feedbackChoice));
 document.querySelector("#remove-feedback").addEventListener("click", () => saveFeedback(null));

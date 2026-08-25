@@ -2,6 +2,29 @@
 .setup-title p { margin: 0 0 7px; color: var(--accent); font-size: 12px; font-weight: 700; }
 .setup-title h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
 .setup-title > span { display: block; max-width: 760px; margin-top: 10px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.attention-note {
+  position: relative;
+  padding: 11px 13px 11px 14px;
+  border: 1px solid #e1d2a8;
+  border-right: 4px solid #b46b12;
+  border-radius: 7px;
+  background: #fff8e7;
+  color: #513b14;
+  line-height: 1.9;
+}
+.attention-note::before {
+  content: "حتما بخوان";
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #b46b12;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  vertical-align: baseline;
+}
 
 .setup-progress { margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); list-style: none; border-bottom: 1px solid var(--line); }
 .setup-progress li { min-height: 62px; display: flex; align-items: center; justify-content: center; gap: 9px; color: var(--muted); }
@@ -22,6 +45,7 @@
   width: 100%; height: 43px; padding: 0 11px; border: 1px solid #cbd2d6; border-radius: 6px; background: #fff; color: var(--text); outline: 0;
 }
 .setup-field input:focus, .setup-field select:focus, .district-search input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(36,90,145,.12); }
+.setup-field input::placeholder { color: #7d878d; opacity: 1; }
 .setup-field small { min-height: 16px; color: var(--muted); font-size: 10px; line-height: 1.5; }
 
 .question-band { padding: 25px 0; border-top: 1px solid var(--line); }
@@ -29,6 +53,7 @@
 .band-heading { margin-bottom: 18px; }
 .band-heading h3 { margin: 0; font-size: 17px; }
 .band-heading p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+.band-heading .attention-note { margin-top: 9px; font-size: 12px; }
 .field-grid { display: grid; gap: 16px; }
 .field-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .field-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -38,6 +63,8 @@
 .binary-control span { display: grid; gap: 4px; }
 .binary-control b { font-size: 12px; }
 .binary-control small { color: var(--muted); font-size: 10px; }
+.important-choice { padding: 12px 13px; border: 1px solid #ead7d8; border-radius: 7px; background: #fff8f8; }
+.important-choice small { color: #7a3d3f; }
 #stretch-fields { margin-top: 16px; width: min(540px, 100%); }
 
 .district-scope { min-width: 0; margin: 0; padding: 0; border: 0; display: flex; align-items: center; gap: 18px; }

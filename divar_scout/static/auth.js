@@ -26,6 +26,15 @@ function showError(text) {
   message.hidden = false;
 }
 
+async function readJson(response) {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error("پاسخ سرور کامل نبود؛ چند ثانیه دیگر دوباره تلاش کن");
+  }
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   message.hidden = true;
@@ -48,7 +57,7 @@ form.addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await response.json();
+    const data = await readJson(response);
     if (!response.ok) throw new Error(data.error || "ورود انجام نشد");
     location.replace(data.redirect || "/");
   } catch (error) {

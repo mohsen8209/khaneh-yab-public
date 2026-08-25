@@ -1,4 +1,6 @@
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -183,6 +185,52 @@ class DashboardTests(unittest.TestCase):
             )
             self.assertEqual(app.stats()["total"], 1)
             self.assertIsNone(app.comparison()["left"])
+
+    def test_concurrent_scan_requests_join_one_shared_background_job(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "test.sqlite3")
+            app = DashboardApp(load_config(), database=database)
+            calls = []
+            started = threading.Event()
+            release = threading.Event()
+
+            def fake_run_scan(detail_limit=None, *, user_initiated=False):
+                calls.append((detail_limit, user_initiated))
+                started.set()
+                release.wait(timeout=2)
+                return {
+                    "summary_count": 2,
+                    "detail_count": 1,
+                    "scored_count": 1,
+                    "alert_count": 0,
+                    "expired_count": 0,
+                    "filtered_count": 0,
+                    "detail_errors": [],
+                }
+
+            app.run_scan = fake_run_scan
+            first = app.request_scan(user_initiated=True)
+            self.assertTrue(started.wait(timeout=1))
+            second = app.request_scan(user_initiated=True)
+
+            self.assertTrue(first["accepted"])
+            self.assertTrue(first["running"])
+            self.assertFalse(first["shared"])
+            self.assertTrue(second["accepted"])
+            self.assertTrue(second["running"])
+            self.assertTrue(second["shared"])
+            self.assertEqual(len(calls), 1)
+
+            release.set()
+            for _ in range(20):
+                status = app.scan_status()
+                if not status["running"]:
+                    break
+                time.sleep(0.05)
+
+            self.assertFalse(app.scan_status()["running"])
+            self.assertEqual(app.scan_status()["last_result"]["detail_count"], 1)
+            self.assertIsNone(app.scan_status()["last_error"])
 
 
 if __name__ == "__main__":

@@ -60,6 +60,7 @@ ROUTE_DESCRIPTIONS = {
     ("GET", "/api/profile"): ("پروفایل و کاتالوگ محله", "approved"),
     ("GET", "/api/calibration"): ("زوج ثابت بعدی و پیشرفت", "profile required"),
     ("GET", "/api/listings"): ("نتایج شخصی‌شده", "calibration complete"),
+    ("GET", "/api/scan/status"): ("وضعیت اسکن مشترک پس‌زمینه", "profile required"),
     ("GET", "/api/stats"): ("آمار داشبورد", "calibration complete"),
     ("GET", "/api/config"): ("تنظیمات امن کاربر", "calibration complete"),
     ("GET", "/api/learning"): ("وضعیت موتور سلیقه", "calibration complete"),

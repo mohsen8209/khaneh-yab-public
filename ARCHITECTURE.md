@@ -1,7 +1,7 @@
 # معماری خانه‌یاب عمومی
 
 > این سند خودکار از کد واقعی تولید شده است. منبع ویرایش `scripts/update_architecture.py` است.  
-> اثرانگشت ورودی‌های معماری: `771006c123f4a5a2`
+> اثرانگشت ورودی‌های معماری: `f5f1ac0ca4b93577`
 
 ## روش استفاده برای توسعه
 
@@ -145,36 +145,19 @@ sequenceDiagram
 
 | روش | مسیر | مسئولیت | دسترسی |
 |---|---|---|---|
-| `GET` | `/` | داشبورد یا هدایت به مرحله لازم | `approved + profile + calibration` |
-| `GET` | `/admin` | پنل مدیریت | `admin` |
-| `GET` | `/api/admin/users` | فهرست و آمار حساب‌ها | `admin` |
 | `POST` | `/api/admin/users/status` | تأیید، رد یا تعلیق | `admin + CSRF` |
 | `POST` | `/api/auth/login` | ساخت نشست | `guest` |
 | `POST` | `/api/auth/logout` | ابطال نشست | `authenticated + CSRF` |
-| `GET` | `/api/auth/me` | وضعیت نشست و CSRF | `session optional` |
 | `POST` | `/api/auth/password` | تغییر رمز و ابطال نشست | `authenticated + CSRF` |
 | `POST` | `/api/auth/register` | ساخت حساب pending | `guest` |
-| `GET` | `/api/calibration` | زوج ثابت بعدی و پیشرفت | `profile required` |
 | `POST` | `/api/calibration` | ثبت اتمیک یک انتخاب | `profile required + CSRF` |
-| `GET` | `/api/comparison` | مقایسه ادامه‌دار داشبورد | `calibration complete` |
 | `POST` | `/api/comparison` | ثبت مقایسه ادامه‌دار | `calibration complete + CSRF` |
-| `GET` | `/api/config` | تنظیمات امن کاربر | `calibration complete` |
 | `POST` | `/api/feedback` | ثبت بازخورد آگهی | `calibration complete + CSRF` |
-| `GET` | `/api/learning` | وضعیت موتور سلیقه | `calibration complete` |
-| `GET` | `/api/listings` | نتایج شخصی‌شده | `calibration complete` |
 | `POST` | `/api/notify-test` | اعلان سراسری آزمایشی | `admin + CSRF` |
 | `POST` | `/api/personalization/reset` | پاک‌کردن یادگیری همان کاربر | `calibration complete + CSRF` |
-| `GET` | `/api/profile` | پروفایل و کاتالوگ محله | `approved` |
 | `POST` | `/api/profile` | ثبت پروفایل و شروع onboarding تازه | `approved + CSRF` |
 | `POST` | `/api/scan` | تازه‌سازی موجودی مشترک | `profile required + CSRF` |
-| `GET` | `/api/stats` | آمار داشبورد | `calibration complete` |
 | `GET` | `/assets/*` | فایل‌های استاتیک همان پروژه | `public asset` |
-| `GET` | `/calibration` | مرحله ۱۲ مقایسه | `approved + profile + required` |
-| `GET` | `/healthz` | سلامت پردازش عمومی | `public` |
-| `GET` | `/login` | صفحه ورود | `guest` |
-| `GET` | `/pending` | وضعیت حساب تأییدنشده | `authenticated` |
-| `GET` | `/register` | صفحه ثبت‌نام | `guest` |
-| `GET` | `/setup` | ویزارد پروفایل جست‌وجو | `approved user` |
 
 ## مدل داده واقعی
 

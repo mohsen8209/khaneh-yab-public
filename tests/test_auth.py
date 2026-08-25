@@ -238,9 +238,11 @@ class AuthHttpTests(unittest.TestCase):
         self.assertEqual(headers.get("X-Frame-Options"), "DENY")
 
         scan_calls = []
+        scan_started = threading.Event()
 
         def fake_scan(detail_limit=None, *, user_initiated=False):
             scan_calls.append((detail_limit, user_initiated))
+            scan_started.set()
             return {"ok": True, "summaries": 7, "details": 3}
 
         self.server.app.run_scan = fake_scan
@@ -250,8 +252,9 @@ class AuthHttpTests(unittest.TestCase):
             payload={"detail_limit": 999},
             csrf=user_state["csrf_token"],
         )
-        self.assertEqual(status, 200)
-        self.assertEqual(scan_result["summaries"], 7)
+        self.assertEqual(status, 202)
+        self.assertTrue(scan_result["accepted"])
+        self.assertTrue(scan_started.wait(timeout=1))
         self.assertEqual(scan_calls, [(None, True)])
 
         status, csrf_error, _ = self.request(
@@ -261,6 +264,26 @@ class AuthHttpTests(unittest.TestCase):
         )
         self.assertEqual(status, 403)
         self.assertIn("امنیتی", csrf_error["error"])
+
+
+    def test_unexpected_get_api_errors_return_complete_json_response(self) -> None:
+        admin_browser = self.opener()
+        status, _, _ = self.request(
+            admin_browser,
+            "/api/auth/login",
+            payload={"username": "root_admin", "password": "AdminSecure123"},
+        )
+        self.assertEqual(status, 200)
+
+        def broken_list_users():
+            raise Exception("database connection dropped")
+
+        self.server.app.auth.list_users = broken_list_users
+        status, payload, headers = self.request(admin_browser, "/api/admin/users")
+
+        self.assertEqual(status, 500)
+        self.assertEqual(headers.get_content_type(), "application/json")
+        self.assertIn("خطای داخلی سرور", payload["error"])
 
 
 if __name__ == "__main__":

@@ -4,7 +4,9 @@ import hmac
 import json
 import mimetypes
 import threading
-import time
+import traceback
+from copy import deepcopy
+from datetime import UTC, datetime
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -49,8 +51,14 @@ class DashboardApp:
         self.service = ScoutService(config, database=self.database)
         self.atlas = default_atlas()
         self.scan_lock = threading.Lock()
-        self.user_scan_cooldown_seconds = 120
-        self._last_user_scan_started = 0.0
+        self.scan_state_lock = threading.Lock()
+        self._scan_state: dict[str, Any] = {
+            "running": False,
+            "started_at": None,
+            "finished_at": None,
+            "last_result": None,
+            "last_error": None,
+        }
         self.engine_lock = threading.Lock()
         self._engines: dict[int | None, PersonalizationEngine] = {}
         self.personalization = self.engine(None)
@@ -254,7 +262,7 @@ class DashboardApp:
                     "calibration": public_state,
                     "learning": self.learning_state(user_id),
                 }
-            pair = self.engine(user_id).select_comparison(records)
+            pair = self.engine(user_id).select_comparison(eligible_records)
             if pair is None:
                 return {
                     "ready": False,
@@ -274,7 +282,7 @@ class DashboardApp:
             right = eligible.get(right_token)
             if left is None or right is None:
                 self.database.clear_calibration_pair(user_id)
-                raise RuntimeError("زوج مقایسه تازه شد؛ دوباره تلاش کن")
+                return self.calibration(user_id)
             state = self.database.calibration_state(user_id)
             public_state = _public_calibration_state(state)
         else:
@@ -379,20 +387,7 @@ class DashboardApp:
         *,
         user_initiated: bool = False,
     ) -> dict[str, Any]:
-        if not self.scan_lock.acquire(blocking=False):
-            raise RuntimeError("اسکن دیگری در حال اجراست")
-        cooldown_started = False
-        try:
-            now = time.monotonic()
-            if user_initiated:
-                elapsed = now - self._last_user_scan_started
-                if elapsed < self.user_scan_cooldown_seconds:
-                    remaining = max(1, int(self.user_scan_cooldown_seconds - elapsed))
-                    raise RuntimeError(
-                        f"نتایج همین حالا تازه شده‌اند؛ {remaining} ثانیه دیگر دوباره امتحان کن"
-                    )
-                self._last_user_scan_started = now
-                cooldown_started = True
+        with self.scan_lock:
             source_urls = sorted(
                 {
                     crawl_url_for_profile(profile)
@@ -403,18 +398,95 @@ class DashboardApp:
                 detail_limit=detail_limit,
                 source_urls=source_urls or [self.config.search["url"]],
             ).as_dict()
-        except Exception:
-            if cooldown_started:
-                self._last_user_scan_started = 0.0
-            raise
-        finally:
-            self.scan_lock.release()
+
+    def request_scan(
+        self,
+        detail_limit: int | None = None,
+        *,
+        user_initiated: bool = False,
+    ) -> dict[str, Any]:
+        with self.scan_state_lock:
+            if self._scan_state["running"]:
+                status = deepcopy(self._scan_state)
+                status.update({"accepted": True, "shared": True, "poll_after_seconds": 6})
+                return status
+            started_at = _utc_timestamp()
+            self._scan_state = {
+                "running": True,
+                "started_at": started_at,
+                "finished_at": None,
+                "last_result": None,
+                "last_error": None,
+            }
+        threading.Thread(
+            target=self._scan_job,
+            args=(detail_limit,),
+            kwargs={"user_initiated": user_initiated},
+            daemon=True,
+            name="khane-yab-user-scan",
+        ).start()
+        return {
+            "accepted": True,
+            "shared": False,
+            "running": True,
+            "started_at": started_at,
+            "finished_at": None,
+            "last_result": None,
+            "last_error": None,
+            "poll_after_seconds": 6,
+        }
+
+    def scan_status(self) -> dict[str, Any]:
+        with self.scan_state_lock:
+            status = deepcopy(self._scan_state)
+        status["poll_after_seconds"] = 6
+        status["last_scan"] = self.database.stats().get("last_scan")
+        return status
+
+    def _scan_job(
+        self,
+        detail_limit: int | None,
+        *,
+        user_initiated: bool = False,
+    ) -> None:
+        try:
+            result = self.run_scan(
+                detail_limit=detail_limit,
+                user_initiated=user_initiated,
+            )
+            with self.scan_state_lock:
+                self._scan_state.update(
+                    {
+                        "running": False,
+                        "finished_at": _utc_timestamp(),
+                        "last_result": result,
+                        "last_error": None,
+                    }
+                )
+        except Exception as error:
+            with self.scan_state_lock:
+                self._scan_state.update(
+                    {
+                        "running": False,
+                        "finished_at": _utc_timestamp(),
+                        "last_result": None,
+                        "last_error": str(error),
+                    }
+                )
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
     server: "DashboardServer"
 
     def do_GET(self) -> None:  # noqa: N802
+        try:
+            self._handle_get()
+        except (AuthError, KeyError, ValueError, RuntimeError) as error:
+            self._known_error(error)
+        except Exception as error:
+            self._internal_error(error)
+
+    def _handle_get(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
         if path.startswith("/assets/"):
@@ -513,6 +585,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/calibration":
                 self._json(self.server.app.calibration(user.id))
+                return
+            if path == "/api/scan/status":
+                self._json(self.server.app.scan_status())
                 return
             if not self._require_calibration(user):
                 return
@@ -640,10 +715,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if path == "/api/scan":
                 detail_limit = body.get("detail_limit") if user.role == "admin" else None
                 self._json(
-                    self.server.app.run_scan(
+                    self.server.app.request_scan(
                         detail_limit,
                         user_initiated=user.role != "admin",
-                    )
+                    ),
+                    status=HTTPStatus.ACCEPTED,
                 )
                 return
             if not self._require_calibration(user):
@@ -684,11 +760,31 @@ class DashboardHandler(BaseHTTPRequestHandler):
         except RateLimitError as error:
             self._json({"error": str(error)}, status=HTTPStatus.TOO_MANY_REQUESTS)
         except (AuthError, KeyError, ValueError, RuntimeError) as error:
-            self._json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            self._known_error(error)
         except json.JSONDecodeError:
             self._json({"error": "بدنه درخواست معتبر نیست"}, status=HTTPStatus.BAD_REQUEST)
-        except Exception:
-            self._json({"error": "خطای داخلی سرور"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+        except Exception as error:
+            self._internal_error(error)
+
+    def _known_error(self, error: Exception) -> None:
+        if urlparse(self.path).path.startswith("/api/"):
+            self._json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        self.send_error(HTTPStatus.BAD_REQUEST, str(error))
+
+    def _internal_error(self, error: Exception) -> None:
+        print(
+            f"Unhandled dashboard error on {self.command} {self.path}: {error}",
+            flush=True,
+        )
+        traceback.print_exception(type(error), error, error.__traceback__)
+        if urlparse(self.path).path.startswith("/api/"):
+            self._json(
+                {"error": "خطای داخلی سرور؛ چند ثانیه دیگر دوباره تلاش کن"},
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
+            return
+        self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def _send_notification_test(self) -> None:
         listing = Listing(
@@ -940,6 +1036,10 @@ def _public_listing(item: dict[str, Any]) -> dict[str, Any]:
 def _public_calibration_state(state: dict[str, Any]) -> dict[str, Any]:
     private_keys = {"current_left_token", "current_right_token"}
     return {key: value for key, value in state.items() if key not in private_keys}
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def serve(config: AppConfig, app: DashboardApp | None = None) -> None:

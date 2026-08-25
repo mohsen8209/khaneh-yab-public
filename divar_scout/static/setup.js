@@ -28,7 +28,13 @@ async function api(path, options = {}) {
     headers["X-CSRF-Token"] = state.auth.csrf_token;
   }
   const response = await fetch(path, { ...options, method, headers, cache: "no-store" });
-  const data = await response.json();
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error("پاسخ سرور کامل نبود؛ چند ثانیه دیگر دوباره تلاش کن");
+  }
   if (response.status === 401) {
     location.replace("/login");
     throw new Error("نشست ورود پایان یافته است");
@@ -463,6 +469,12 @@ function criteriaError() {
   const hardAge = numberValue("hard-age", true);
   const minFloor = numberValue("min-floor", true);
   const maxFloor = numberValue("max-floor", true);
+  if ([idealDeposit, hardDeposit].some((value) => value > 10000)) {
+    return "عدد ودیعه را به میلیون تومان وارد کن؛ مثلا برای ۳۰۰ میلیون فقط 300 بنویس";
+  }
+  if ([idealRent, hardRent].some((value) => value > 1000)) {
+    return "عدد اجاره را به میلیون تومان وارد کن؛ مثلا برای ۳۰ میلیون فقط 30 بنویس";
+  }
   if (idealDeposit > hardDeposit) return "ودیعه ایده‌آل نباید از سقف قطعی بیشتر باشد";
   if (idealRent > hardRent) return "اجاره ایده‌آل نباید از سقف قطعی بیشتر باشد";
   if (idealSize < minSize) return "متراژ ایده‌آل باید حداقل برابر حداقل متراژ باشد";
@@ -474,6 +486,8 @@ function criteriaError() {
     const stretchDeposit = numberValue("stretch-deposit");
     const stretchRent = numberValue("stretch-rent");
     if (stretchDeposit === null || stretchRent === null) return "هر دو سقف بودجه استثنایی را وارد کن";
+    if (stretchDeposit > 10000) return "عدد ودیعه استثنایی را به میلیون تومان وارد کن؛ مثلا 400 یعنی ۴۰۰ میلیون";
+    if (stretchRent > 1000) return "عدد اجاره استثنایی را به میلیون تومان وارد کن؛ مثلا 55 یعنی ۵۵ میلیون";
     if (stretchDeposit < hardDeposit || stretchRent < hardRent) return "سقف استثنایی نباید از سقف قطعی کمتر باشد";
   }
   if (selectedValue("district-scope") === "selected" && !state.selectedDistricts.size) {
