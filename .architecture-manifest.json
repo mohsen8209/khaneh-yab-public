@@ -13,7 +13,7 @@
   "divar_scout/auth.py": "42e4af8c6d72e9fc",
   "divar_scout/cli.py": "0d292feec10b5f9f",
   "divar_scout/config.py": "c8439d4d4c56eaaa",
-  "divar_scout/dashboard.py": "4b88d3b61e6bc3dc",
+  "divar_scout/dashboard.py": "b9589fb8d9667ccb",
   "divar_scout/db.py": "b4dd1b089dacee2c",
   "divar_scout/divar_client.py": "bf653195091002d1",
   "divar_scout/models.py": "7e5867cdfcabcca6",

@@ -162,6 +162,22 @@ class CalibrationTests(unittest.TestCase):
         self.assertEqual(self.database.calibration_state(self.user.id)["completed"], 1)
         self.assertEqual(len(self.database.list_comparisons(user_id=self.user.id)), 1)
 
+    def test_calibration_uses_fast_scoring_without_per_listing_market_queries(self) -> None:
+        self.store_candidates()
+        self.app.save_profile(self.user.id, profile_payload())
+
+        def forbidden_context(*args, **kwargs):
+            raise AssertionError("calibration must not run per-listing market context queries")
+
+        self.database.comparable_costs = forbidden_context
+        self.database.duplicate_image_count = forbidden_context
+
+        pair = self.app.calibration(self.user.id)
+
+        self.assertTrue(pair["ready"])
+        self.assertIsNotNone(pair["left"])
+        self.assertIsNotNone(pair["right"])
+
     def test_existing_completed_profiles_are_not_suddenly_gated(self) -> None:
         from divar_scout.search_profile import validate_profile
 

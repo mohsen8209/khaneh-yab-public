@@ -41,6 +41,7 @@ STATIC_ROOT = Path(__file__).resolve().parent / "static"
 SESSION_COOKIE = "khane_yab_public_session"
 MAX_BODY_BYTES = 64 * 1024
 CALIBRATION_TARGET = 12
+CALIBRATION_RECORD_LIMIT = 140
 
 
 class DashboardApp:
@@ -231,7 +232,11 @@ class DashboardApp:
                 "redirect": "/",
             }
 
-        records = self._personalized_records(user_id)
+        records = self._personalized_records(
+            user_id,
+            limit=CALIBRATION_RECORD_LIMIT,
+            include_market_context=False,
+        )
         eligible_records = [
             item
             for item in records
@@ -321,7 +326,11 @@ class DashboardApp:
         return self.engine(user_id).retrain()
 
     def _personalized_records(
-        self, user_id: int | None = None
+        self,
+        user_id: int | None = None,
+        *,
+        limit: int = 500,
+        include_market_context: bool = True,
     ) -> list[dict[str, Any]]:
         if user_id is not None and not self.database.user_profile_complete(user_id):
             return []
@@ -329,7 +338,7 @@ class DashboardApp:
         user_config = self.user_config(user_id)
         records = [
             item
-            for item in self.database.list_records(user_id=user_id)
+            for item in self.database.list_records(user_id=user_id, limit=limit)
             if listing_exclusion_reason(item) is None
             and profile_scope_exclusion_reason(item, user_config) is None
         ]
@@ -339,18 +348,24 @@ class DashboardApp:
                 listing = Listing(
                     **{key: value for key, value in item.items() if key in listing_fields}
                 )
-                comparable = self.database.comparable_costs(
-                    listing.district or "",
-                    listing.rooms,
-                    listing.size,
-                    float(user_config.profile["deposit_to_monthly_rate"]),
-                    exclude_token=listing.token,
+                comparable = (
+                    self.database.comparable_costs(
+                        listing.district or "",
+                        listing.rooms,
+                        listing.size,
+                        float(user_config.profile["deposit_to_monthly_rate"]),
+                        exclude_token=listing.token,
+                    )
+                    if include_market_context else []
                 )
                 base_score = score_listing(
                     listing,
                     user_config,
                     self.atlas,
-                    duplicate_image_count=self.database.duplicate_image_count(listing.token),
+                    duplicate_image_count=(
+                        self.database.duplicate_image_count(listing.token)
+                        if include_market_context else 0
+                    ),
                     comparable_costs=comparable,
                 )
                 item["score"] = base_score.as_dict()
