@@ -223,6 +223,15 @@ class ScoringTests(unittest.TestCase):
             profile_scope_exclusion_reason(good_listing(rent=None), self.config)
         )
 
+    def test_missing_district_never_crashes_profile_scope_or_scoring(self) -> None:
+        config = load_config()
+        config.raw["profile"]["allowed_district_names"] = ["پاسداران"]
+        listing = good_listing(district=None)
+
+        self.assertIsNotNone(profile_scope_exclusion_reason(listing, config))
+        result = score_listing(listing, self.config, self.atlas)
+        self.assertIsInstance(result.total, float)
+
     def test_high_total_with_weak_property_is_not_labeled_top(self) -> None:
         result = score_listing(
             good_listing(

@@ -17,7 +17,7 @@
   "divar_scout/db.py": "b4dd1b089dacee2c",
   "divar_scout/divar_client.py": "bf653195091002d1",
   "divar_scout/models.py": "7e5867cdfcabcca6",
-  "divar_scout/neighborhoods.py": "93c8432fbdcfd678",
+  "divar_scout/neighborhoods.py": "42c194e03f11008c",
   "divar_scout/notifier.py": "d80fcd925870541e",
   "divar_scout/personalization.py": "1f6df3cd38bdab0a",
   "divar_scout/runtime.py": "576b337c057db60e",

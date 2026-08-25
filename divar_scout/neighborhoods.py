@@ -13,8 +13,8 @@ from .config import NEIGHBORHOODS_PATH
 ARABIC_NORMALIZATION = str.maketrans({"ي": "ی", "ك": "ک", "ة": "ه", "ۀ": "ه"})
 
 
-def normalize_text(value: str) -> str:
-    value = value.translate(ARABIC_NORMALIZATION).replace("\u200c", " ")
+def normalize_text(value: Any) -> str:
+    value = str(value or "").translate(ARABIC_NORMALIZATION).replace("\u200c", " ")
     value = re.sub(r"[^\w\s()]", " ", value, flags=re.UNICODE)
     return re.sub(r"\s+", " ", value).strip().lower()
 
