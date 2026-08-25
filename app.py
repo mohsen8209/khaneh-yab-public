@@ -1,7 +1,8 @@
 import os
 
 
-os.environ.setdefault("KHANEYAB_RUNTIME", "paas")
+# This entrypoint is exclusively for the hosted PaaS process.
+os.environ["KHANEYAB_RUNTIME"] = "paas"
 
 from divar_scout.runtime import run_paas  # noqa: E402
 

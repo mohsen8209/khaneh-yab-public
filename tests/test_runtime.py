@@ -114,7 +114,7 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must be true or false"):
             environment_flag({"FLAG": "sometimes"}, "FLAG", default=True)
 
-    def test_app_entrypoint_serves_health_from_persistent_volume(self) -> None:
+    def test_app_entrypoint_forces_paas_runtime_and_serves_health(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config_path = root / "config.json"
@@ -127,7 +127,7 @@ class RuntimeTests(unittest.TestCase):
             environment = os.environ.copy()
             environment.update(
                 {
-                    "KHANEYAB_RUNTIME": "paas",
+                    "KHANEYAB_RUNTIME": "incorrect-panel-value",
                     "KHANEYAB_CONFIG_PATH": str(config_path),
                     "KHANEYAB_HOST": "0.0.0.0",
                     "KHANEYAB_PORT": str(port),
