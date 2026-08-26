@@ -194,7 +194,9 @@ class DashboardTests(unittest.TestCase):
             started = threading.Event()
             release = threading.Event()
 
-            def fake_run_scan(detail_limit=None, *, user_initiated=False):
+            def fake_run_scan(
+                detail_limit=None, *, user_initiated=False, source_urls=None
+            ):
                 calls.append((detail_limit, user_initiated))
                 started.set()
                 release.wait(timeout=2)
@@ -231,6 +233,70 @@ class DashboardTests(unittest.TestCase):
             self.assertFalse(app.scan_status()["running"])
             self.assertEqual(app.scan_status()["last_result"]["detail_count"], 1)
             self.assertIsNone(app.scan_status()["last_error"])
+
+    def test_new_profile_during_scan_is_queued_for_a_follow_up_scan(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            app = DashboardApp(
+                load_config(), database=Database(Path(directory) / "test.sqlite3")
+            )
+            available_urls = ["https://divar.ir/s/tehran/rent-apartment?rent=-30"]
+            calls: list[tuple[str, ...]] = []
+            first_started = threading.Event()
+            release_first = threading.Event()
+            second_finished = threading.Event()
+
+            app._source_urls = lambda: list(available_urls)
+
+            def fake_run_scan(
+                detail_limit=None, *, user_initiated=False, source_urls=None
+            ):
+                calls.append(tuple(source_urls or []))
+                if len(calls) == 1:
+                    first_started.set()
+                    release_first.wait(timeout=2)
+                else:
+                    second_finished.set()
+                return {
+                    "summary_count": len(calls),
+                    "detail_count": 1,
+                    "scored_count": 1,
+                    "alert_count": 0,
+                    "expired_count": 0,
+                    "filtered_count": 0,
+                    "detail_errors": [],
+                }
+
+            app.run_scan = fake_run_scan
+            first = app.request_scan(user_initiated=True)
+            self.assertTrue(first_started.wait(timeout=1))
+
+            available_urls.append(
+                "https://divar.ir/s/tehran/rent-apartment?rent=-45"
+            )
+            second = app.request_scan(user_initiated=True)
+
+            self.assertTrue(second["accepted"])
+            self.assertTrue(second["shared"])
+            self.assertTrue(second["queued"])
+            release_first.set()
+            self.assertTrue(second_finished.wait(timeout=1))
+            for _ in range(20):
+                if not app.scan_status()["running"]:
+                    break
+                time.sleep(0.05)
+
+            self.assertEqual(
+                calls,
+                [
+                    ("https://divar.ir/s/tehran/rent-apartment?rent=-30",),
+                    (
+                        "https://divar.ir/s/tehran/rent-apartment?rent=-30",
+                        "https://divar.ir/s/tehran/rent-apartment?rent=-45",
+                    ),
+                ],
+            )
+            self.assertFalse(app.scan_status()["running"])
+            self.assertFalse(app.scan_status()["queued"])
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from . import __version__
 from .auth import AuthError, AuthService, AuthSession, AuthUser, RateLimitError
 from .config import AppConfig
 from .db import Database
@@ -53,8 +54,11 @@ class DashboardApp:
         self.atlas = default_atlas()
         self.scan_lock = threading.Lock()
         self.scan_state_lock = threading.Lock()
+        self._active_scan_urls: set[str] = set()
+        self._scan_rerun_requested = False
         self._scan_state: dict[str, Any] = {
             "running": False,
+            "queued": False,
             "started_at": None,
             "finished_at": None,
             "last_result": None,
@@ -401,18 +405,22 @@ class DashboardApp:
         detail_limit: int | None = None,
         *,
         user_initiated: bool = False,
+        source_urls: list[str] | None = None,
     ) -> dict[str, Any]:
         with self.scan_lock:
-            source_urls = sorted(
-                {
-                    crawl_url_for_profile(profile)
-                    for profile in self.database.completed_user_profiles()
-                }
-            )
             return self.service.run_once(
                 detail_limit=detail_limit,
-                source_urls=source_urls or [self.config.search["url"]],
+                source_urls=source_urls or self._source_urls(),
             ).as_dict()
+
+    def _source_urls(self) -> list[str]:
+        source_urls = sorted(
+            {
+                crawl_url_for_profile(profile)
+                for profile in self.database.completed_user_profiles()
+            }
+        )
+        return source_urls or [self.config.search["url"]]
 
     def request_scan(
         self,
@@ -420,14 +428,22 @@ class DashboardApp:
         *,
         user_initiated: bool = False,
     ) -> dict[str, Any]:
+        requested_urls = self._source_urls()
         with self.scan_state_lock:
             if self._scan_state["running"]:
+                queued = not set(requested_urls).issubset(self._active_scan_urls)
+                if queued:
+                    self._scan_rerun_requested = True
+                    self._scan_state["queued"] = True
                 status = deepcopy(self._scan_state)
                 status.update({"accepted": True, "shared": True, "poll_after_seconds": 6})
                 return status
             started_at = _utc_timestamp()
+            self._active_scan_urls = set(requested_urls)
+            self._scan_rerun_requested = False
             self._scan_state = {
                 "running": True,
+                "queued": False,
                 "started_at": started_at,
                 "finished_at": None,
                 "last_result": None,
@@ -435,7 +451,7 @@ class DashboardApp:
             }
         threading.Thread(
             target=self._scan_job,
-            args=(detail_limit,),
+            args=(detail_limit, requested_urls),
             kwargs={"user_initiated": user_initiated},
             daemon=True,
             name="khane-yab-user-scan",
@@ -444,6 +460,7 @@ class DashboardApp:
             "accepted": True,
             "shared": False,
             "running": True,
+            "queued": False,
             "started_at": started_at,
             "finished_at": None,
             "last_result": None,
@@ -461,28 +478,46 @@ class DashboardApp:
     def _scan_job(
         self,
         detail_limit: int | None,
+        source_urls: list[str],
         *,
         user_initiated: bool = False,
     ) -> None:
         try:
-            result = self.run_scan(
-                detail_limit=detail_limit,
-                user_initiated=user_initiated,
-            )
-            with self.scan_state_lock:
-                self._scan_state.update(
-                    {
-                        "running": False,
-                        "finished_at": _utc_timestamp(),
-                        "last_result": result,
-                        "last_error": None,
-                    }
+            current_urls = source_urls
+            while True:
+                result = self.run_scan(
+                    detail_limit=detail_limit,
+                    user_initiated=user_initiated,
+                    source_urls=current_urls,
                 )
+                with self.scan_state_lock:
+                    if self._scan_rerun_requested:
+                        current_urls = self._source_urls()
+                        self._active_scan_urls = set(current_urls)
+                        self._scan_rerun_requested = False
+                        self._scan_state.update(
+                            {"queued": False, "last_result": result, "last_error": None}
+                        )
+                        continue
+                    self._active_scan_urls.clear()
+                    self._scan_state.update(
+                        {
+                            "running": False,
+                            "queued": False,
+                            "finished_at": _utc_timestamp(),
+                            "last_result": result,
+                            "last_error": None,
+                        }
+                    )
+                    return
         except Exception as error:
             with self.scan_state_lock:
+                self._active_scan_urls.clear()
+                self._scan_rerun_requested = False
                 self._scan_state.update(
                     {
                         "running": False,
+                        "queued": False,
                         "finished_at": _utc_timestamp(),
                         "last_result": None,
                         "last_error": str(error),
@@ -508,7 +543,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._serve_asset(path)
             return
         if path == "/healthz":
-            self._json({"ok": True})
+            self._json({"ok": True, "release": __version__})
             return
         if path == "/api/auth/me":
             self._auth_state()
@@ -1019,6 +1054,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _security_headers(self) -> None:
+        self.send_header("X-Khaneyab-Release", __version__)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "same-origin")
@@ -1061,7 +1097,10 @@ def serve(config: AppConfig, app: DashboardApp | None = None) -> None:
     host = config.dashboard["host"]
     port = int(config.dashboard["port"])
     server = DashboardServer((host, port), app or DashboardApp(config))
-    print(f"Khaneh-yab public dashboard: http://{host}:{port}")
+    print(
+        f"Khaneh-yab public dashboard {__version__}: http://{host}:{port}",
+        flush=True,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

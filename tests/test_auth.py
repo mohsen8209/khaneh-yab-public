@@ -230,6 +230,25 @@ class AuthHttpTests(unittest.TestCase):
         self.assertEqual(calibration_required["code"], "calibration_required")
         self.assertEqual(calibration_required["redirect"], "/calibration")
 
+        self.database.upsert_listing(
+            Listing(
+                token="missing-district",
+                title="آپارتمان با محله نامشخص",
+                url="https://divar.ir/v/missing-district",
+                district=None,
+                deposit=250_000_000,
+                rent=30_000_000,
+                size=75,
+                rooms=1,
+                age=8,
+                has_parking=True,
+                has_elevator=True,
+                image_count=3,
+                images=["https://s100.divarcdn.com/static/test.jpg"] * 3,
+                description="واحد مسکونی با پارکینگ خودرو و آسانسور",
+            ),
+            detail_fetched=True,
+        )
         status, calibration, headers = self.request(user_browser, "/api/calibration")
         self.assertEqual(status, 200)
         self.assertFalse(calibration["ready"])
@@ -240,7 +259,9 @@ class AuthHttpTests(unittest.TestCase):
         scan_calls = []
         scan_started = threading.Event()
 
-        def fake_scan(detail_limit=None, *, user_initiated=False):
+        def fake_scan(
+            detail_limit=None, *, user_initiated=False, source_urls=None
+        ):
             scan_calls.append((detail_limit, user_initiated))
             scan_started.set()
             return {"ok": True, "summaries": 7, "details": 3}
@@ -284,6 +305,13 @@ class AuthHttpTests(unittest.TestCase):
         self.assertEqual(status, 500)
         self.assertEqual(headers.get_content_type(), "application/json")
         self.assertIn("خطای داخلی سرور", payload["error"])
+
+    def test_health_check_exposes_the_running_release(self) -> None:
+        status, payload, headers = self.request(self.opener(), "/healthz")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, {"ok": True, "release": "0.1.2"})
+        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.2")
 
 
 if __name__ == "__main__":
