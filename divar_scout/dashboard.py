@@ -28,8 +28,9 @@ from .scoring import (
     score_listing,
 )
 from .search_profile import (
+    UNUSABLE_DIVAR_DISTRICT_IDS,
     config_for_profile,
-    crawl_url_for_profile,
+    crawl_urls_for_profile,
     districts,
     empty_profile,
     normalize_profile,
@@ -55,7 +56,7 @@ class DashboardApp:
         self.scan_lock = threading.Lock()
         self.scan_state_lock = threading.Lock()
         self._active_scan_urls: set[str] = set()
-        self._scan_rerun_requested = False
+        self._queued_scan_jobs: dict[tuple[str, ...], int | None] = {}
         self._scan_state: dict[str, Any] = {
             "running": False,
             "queued": False,
@@ -88,6 +89,8 @@ class DashboardApp:
     def profile_payload(self, user_id: int) -> dict[str, Any]:
         catalog = []
         for item in districts():
+            if item["id"] in UNUSABLE_DIVAR_DISTRICT_IDS:
+                continue
             rating = self.atlas.rate(item["name"])
             catalog.append({**item, "score": rating.score, "quality": rating.label})
         catalog.sort(key=lambda item: (-float(item["score"]), item["name"]))
@@ -406,41 +409,63 @@ class DashboardApp:
         *,
         user_initiated: bool = False,
         source_urls: list[str] | None = None,
+        archive_missing: bool = True,
+        user_id: int | None = None,
     ) -> dict[str, Any]:
         with self.scan_lock:
-            return self.service.run_once(
+            service = (
+                self.service
+                if user_id is None
+                else ScoutService(
+                    self.user_config(user_id),
+                    database=self.database,
+                    atlas=self.atlas,
+                )
+            )
+            return service.run_once(
                 detail_limit=detail_limit,
-                source_urls=source_urls or self._source_urls(),
+                source_urls=self._source_urls() if source_urls is None else source_urls,
+                archive_missing=archive_missing,
             ).as_dict()
 
     def _source_urls(self) -> list[str]:
         source_urls = sorted(
             {
-                crawl_url_for_profile(profile)
+                source_url
                 for profile in self.database.completed_user_profiles()
+                for source_url in crawl_urls_for_profile(profile)
             }
         )
         return source_urls or [self.config.search["url"]]
+
+    def _source_urls_for_user(self, user_id: int | None) -> list[str]:
+        if user_id is None:
+            return self._source_urls()
+        return crawl_urls_for_profile(self.profile(user_id))
 
     def request_scan(
         self,
         detail_limit: int | None = None,
         *,
         user_initiated: bool = False,
+        user_id: int | None = None,
     ) -> dict[str, Any]:
-        requested_urls = self._source_urls()
+        requested_urls = self._source_urls_for_user(user_id)
+        if not requested_urls:
+            raise ValueError("محله‌های انتخابی دیگر در جست‌وجوی فعلی دیوار فعال نیستند؛ معیارها را ویرایش کنید")
         with self.scan_state_lock:
             if self._scan_state["running"]:
                 queued = not set(requested_urls).issubset(self._active_scan_urls)
                 if queued:
-                    self._scan_rerun_requested = True
-                    self._scan_state["queued"] = True
+                    job_key = tuple(sorted(set(requested_urls)))
+                    self._queued_scan_jobs.setdefault(job_key, user_id)
+                    self._scan_state["queued"] = bool(self._queued_scan_jobs)
                 status = deepcopy(self._scan_state)
                 status.update({"accepted": True, "shared": True, "poll_after_seconds": 6})
                 return status
             started_at = _utc_timestamp()
             self._active_scan_urls = set(requested_urls)
-            self._scan_rerun_requested = False
+            self._queued_scan_jobs.clear()
             self._scan_state = {
                 "running": True,
                 "queued": False,
@@ -452,7 +477,11 @@ class DashboardApp:
         threading.Thread(
             target=self._scan_job,
             args=(detail_limit, requested_urls),
-            kwargs={"user_initiated": user_initiated},
+            kwargs={
+                "user_initiated": user_initiated,
+                "archive_missing": user_id is None,
+                "user_id": user_id,
+            },
             daemon=True,
             name="khane-yab-user-scan",
         ).start()
@@ -481,6 +510,8 @@ class DashboardApp:
         source_urls: list[str],
         *,
         user_initiated: bool = False,
+        archive_missing: bool = True,
+        user_id: int | None = None,
     ) -> None:
         try:
             current_urls = source_urls
@@ -489,14 +520,22 @@ class DashboardApp:
                     detail_limit=detail_limit,
                     user_initiated=user_initiated,
                     source_urls=current_urls,
+                    archive_missing=archive_missing,
+                    user_id=user_id,
                 )
                 with self.scan_state_lock:
-                    if self._scan_rerun_requested:
-                        current_urls = self._source_urls()
+                    if self._queued_scan_jobs:
+                        next_job = sorted(self._queued_scan_jobs)[0]
+                        user_id = self._queued_scan_jobs.pop(next_job)
+                        current_urls = list(next_job)
                         self._active_scan_urls = set(current_urls)
-                        self._scan_rerun_requested = False
+                        archive_missing = False
                         self._scan_state.update(
-                            {"queued": False, "last_result": result, "last_error": None}
+                            {
+                                "queued": bool(self._queued_scan_jobs),
+                                "last_result": result,
+                                "last_error": None,
+                            }
                         )
                         continue
                     self._active_scan_urls.clear()
@@ -513,7 +552,7 @@ class DashboardApp:
         except Exception as error:
             with self.scan_state_lock:
                 self._active_scan_urls.clear()
-                self._scan_rerun_requested = False
+                self._queued_scan_jobs.clear()
                 self._scan_state.update(
                     {
                         "running": False,
@@ -768,6 +807,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.server.app.request_scan(
                         detail_limit,
                         user_initiated=user.role != "admin",
+                        user_id=user.id if user.role != "admin" else None,
                     ),
                     status=HTTPStatus.ACCEPTED,
                 )

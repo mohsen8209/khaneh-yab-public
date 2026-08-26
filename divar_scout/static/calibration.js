@@ -212,8 +212,8 @@ async function prepareInventory(result) {
   detail.textContent = "در حال اسکن آگهی‌های تهران و آماده‌کردن گزینه‌های منطبق با معیارهای تو هستیم...";
   try {
     const scan = await api("/api/scan", { method: "POST", body: "{}" });
-    await waitForScan(scan);
-    await loadComparison();
+    const completed = await waitForScan(scan);
+    if (!completed?.inventoryReady) await loadComparison();
   } catch (error) {
     detail.textContent = error.message;
     retry.hidden = false;
@@ -232,7 +232,18 @@ async function waitForScan(scan) {
       const status = await api("/api/scan/status");
       if (status.last_error) throw new Error(status.last_error);
       if (!status.running) return status.last_result || status;
-      detail.textContent = "هنوز در حال بررسی آگهی‌ها هستیم؛ بعد از آماده شدن، مقایسه‌ها خودکار نمایش داده می‌شوند...";
+      const calibration = await api("/api/calibration");
+      if (calibration.calibration?.complete) {
+        location.replace(calibration.redirect || "/");
+        return { inventoryReady: true };
+      }
+      if (calibration.ready && calibration.left && calibration.right) {
+        renderPair(calibration);
+        return { inventoryReady: true };
+      }
+      const summaries = Number(status.last_scan?.summary_count || 0).toLocaleString("fa-IR");
+      const details = Number(status.last_scan?.detail_count || 0).toLocaleString("fa-IR");
+      detail.textContent = `در حال بررسی آگهی‌های منطبق با انتخاب تو هستیم؛ تا این لحظه ${summaries} آگهی دیده و ${details} آگهی کامل بررسی شده است.`;
     }
     throw new Error("اسکن طولانی شد؛ کمی بعد دوباره تلاش کن");
   } finally {

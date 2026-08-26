@@ -261,9 +261,15 @@ class AuthHttpTests(unittest.TestCase):
         scan_started = threading.Event()
 
         def fake_scan(
-            detail_limit=None, *, user_initiated=False, source_urls=None
+            detail_limit=None, *, user_initiated=False, source_urls=None,
+            archive_missing=True, user_id=None,
         ):
-            scan_calls.append((detail_limit, user_initiated))
+            scan_calls.append(
+                (
+                    detail_limit, user_initiated, tuple(source_urls or []),
+                    archive_missing, user_id,
+                )
+            )
             scan_started.set()
             return {"ok": True, "summaries": 7, "details": 3}
 
@@ -277,7 +283,11 @@ class AuthHttpTests(unittest.TestCase):
         self.assertEqual(status, 202)
         self.assertTrue(scan_result["accepted"])
         self.assertTrue(scan_started.wait(timeout=1))
-        self.assertEqual(scan_calls, [(None, True)])
+        self.assertEqual(len(scan_calls), 1)
+        self.assertEqual(scan_calls[0][:2], (None, True))
+        self.assertEqual(len(scan_calls[0][2]), 1)
+        self.assertFalse(scan_calls[0][3])
+        self.assertEqual(scan_calls[0][4], user_id)
 
         status, csrf_error, _ = self.request(
             admin_browser,
@@ -312,8 +322,8 @@ class AuthHttpTests(unittest.TestCase):
         status, payload, headers = self.request(self.opener(), "/healthz")
 
         self.assertEqual(status, 200)
-        self.assertEqual(payload, {"ok": True, "release": "0.1.2"})
-        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.2")
+        self.assertEqual(payload, {"ok": True, "release": "0.1.3"})
+        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.3")
 
 
 if __name__ == "__main__":

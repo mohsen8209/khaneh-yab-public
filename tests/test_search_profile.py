@@ -11,6 +11,7 @@ from divar_scout.search_profile import (
     SearchProfileError,
     config_for_profile,
     crawl_url_for_profile,
+    crawl_urls_for_profile,
     districts,
     normalize_profile,
     validate_profile,
@@ -143,6 +144,38 @@ class SearchProfileTests(unittest.TestCase):
         self.assertEqual(query["elevator"], ["true"])
         self.assertEqual(query["has-photo"], ["true"])
         self.assertNotIn("warehouse", query)
+
+    def test_large_district_selection_is_split_at_divar_safe_limit(self) -> None:
+        payload = complete_payload()
+        active = [row for row in districts() if "قدیمی" not in row["name"]]
+        payload["criteria"]["district_ids"] = [row["id"] for row in active[:32]]
+        profile = validate_profile(payload)
+
+        urls = crawl_urls_for_profile(profile)
+        chunks = [
+            parse_qs(urlparse(url).query)["districts"][0].split(",")
+            for url in urls
+        ]
+
+        self.assertEqual([len(chunk) for chunk in chunks], [15, 15, 2])
+        self.assertEqual(
+            [int(item) for chunk in chunks for item in chunk],
+            profile["criteria"]["district_ids"],
+        )
+
+    def test_deprecated_district_ids_cannot_disable_divar_filtering(self) -> None:
+        profile = validate_profile(complete_payload())
+        profile["criteria"]["district_ids"] = [85, 943, 206]
+
+        urls = crawl_urls_for_profile(profile)
+        selected = parse_qs(urlparse(urls[0]).query)["districts"][0]
+
+        self.assertEqual(selected, "85")
+
+        payload = complete_payload()
+        payload["criteria"]["district_ids"] = [943]
+        with self.assertRaises(SearchProfileError):
+            validate_profile(payload)
 
     def test_config_is_private_and_location_always_affects_score_without_cutoff(self) -> None:
         base = load_config()

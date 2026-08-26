@@ -106,6 +106,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(parse_money("۳۰۰ میلیون"), 300_000_000)
         self.assertEqual(parse_money("۱.۵ میلیارد"), 1_500_000_000)
         self.assertEqual(parse_money("‏۲۸,۰۰۰,۰۰۰ تومان"), 28_000_000)
+        self.assertEqual(parse_money("رایگان"), 0)
 
     def test_parse_map_item(self) -> None:
         raw = {
@@ -208,6 +209,51 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(listing.location_radius, 500)
         self.assertEqual(listing.published_at, "2026-07-27T09:03:00Z")
         self.assertEqual(listing.updated_at, "2026-08-18T09:06:00Z")
+
+    def test_detail_rows_override_scaled_webengage_prices(self) -> None:
+        summary = Listing(
+            token="priced",
+            title="ملک",
+            url="https://divar.ir/v/priced",
+            deposit=300_000_000,
+            rent=45_000_000,
+        )
+        payload = {
+            "sections": [{"widgets": [
+                {
+                    "widget_type": "UNEXPANDABLE_ROW",
+                    "data": {"title": "ودیعه", "value": "‏۳۰۰,۰۰۰,۰۰۰ تومان"},
+                },
+                {
+                    "widget_type": "UNEXPANDABLE_ROW",
+                    "data": {"title": "اجارهٔ ماهانه", "value": "رایگان"},
+                },
+            ]}],
+            "webengage": {"credit": 300_000, "rent": 0},
+        }
+
+        listing = parse_detail(payload, summary)
+
+        self.assertEqual(listing.deposit, 300_000_000)
+        self.assertEqual(listing.rent, 0)
+
+    def test_incomplete_detail_price_never_erases_valid_summary_price(self) -> None:
+        summary = Listing(
+            token="summary-price",
+            title="ملک",
+            url="https://divar.ir/v/summary-price",
+            deposit=250_000_000,
+            rent=35_000_000,
+        )
+        payload = {
+            "sections": [],
+            "webengage": {"credit": 0, "rent": 0},
+        }
+
+        listing = parse_detail(payload, summary)
+
+        self.assertEqual(listing.deposit, 250_000_000)
+        self.assertEqual(listing.rent, 35_000_000)
 
     def test_existing_sort_date_is_migrated_to_real_publication_date(self) -> None:
         publication_widget = {

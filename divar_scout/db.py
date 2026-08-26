@@ -1141,6 +1141,24 @@ class Database:
                 ),
             )
 
+    def update_scan_progress(
+        self,
+        scan_id: int,
+        *,
+        summary_count: int,
+        detail_count: int,
+        filtered_count: int = 0,
+    ) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                """
+                UPDATE scans
+                SET summary_count = ?, detail_count = ?, filtered_count = ?
+                WHERE id = ? AND finished_at IS NULL
+                """,
+                (summary_count, detail_count, filtered_count, scan_id),
+            )
+
     def stats(self) -> dict[str, Any]:
         with self.connect() as connection:
             counts = connection.execute(

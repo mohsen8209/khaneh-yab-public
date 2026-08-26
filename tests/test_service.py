@@ -88,7 +88,7 @@ class EmptyClient:
 class IncompleteInventoryClient:
     last_fetch_complete = False
 
-    def fetch_summaries(self) -> list[Listing]:
+    def fetch_summaries(self, source_url: str | None = None) -> list[Listing]:
         return [listing("fresh")]
 
     def fetch_detail(self, summary: Listing) -> Listing:
@@ -282,6 +282,55 @@ class ServiceNotificationTests(unittest.TestCase):
                 {item["token"] for item in database.list_records()},
                 {"baseline", "fresh"},
             )
+
+    def test_focused_profile_scan_never_archives_other_profiles_inventory(self) -> None:
+        raw = copy.deepcopy(load_config().raw)
+        raw["scan"]["request_delay_seconds"] = 0
+        config = AppConfig(raw=raw, path=Path("test-config.json"))
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "test.sqlite3")
+            database.upsert_listing(
+                listing("other-profile", detailed=True), detail_fetched=True
+            )
+            service = ScoutService(config, database=database, client=IncompleteInventoryClient())
+
+            result = service.run_once(
+                source_urls=["https://divar.ir/s/tehran/rent-apartment?districts=85"],
+                archive_missing=False,
+            )
+
+            self.assertEqual(result.expired_count, 0)
+            self.assertEqual(
+                {item["token"] for item in database.list_records()},
+                {"other-profile", "fresh"},
+            )
+
+    def test_scan_progress_is_persisted_before_the_scan_finishes(self) -> None:
+        raw = copy.deepcopy(load_config().raw)
+        raw["scan"]["request_delay_seconds"] = 0
+        config = AppConfig(raw=raw, path=Path("test-config.json"))
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "test.sqlite3")
+            progress: list[tuple[int, int, int]] = []
+            original = database.update_scan_progress
+
+            def capture(scan_id, *, summary_count, detail_count, filtered_count=0):
+                progress.append((summary_count, detail_count, filtered_count))
+                original(
+                    scan_id,
+                    summary_count=summary_count,
+                    detail_count=detail_count,
+                    filtered_count=filtered_count,
+                )
+
+            database.update_scan_progress = capture
+            service = ScoutService(config, database=database, client=FilteringClient())
+
+            service.run_once()
+
+            self.assertIn((5, 0, 0), progress)
+            self.assertIn((5, 0, 4), progress)
+            self.assertEqual(progress[-1], (5, 1, 4))
 
 
 if __name__ == "__main__":

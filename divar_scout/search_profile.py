@@ -4,7 +4,7 @@ import copy
 import json
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode, urlunparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from .config import AppConfig, ROOT
 
@@ -12,6 +12,9 @@ from .config import AppConfig, ROOT
 DEFAULT_SEARCH_URL = "https://divar.ir/s/tehran/rent-apartment"
 DISTRICTS_PATH = ROOT / "data" / "divar_tehran_districts.json"
 PROFILE_VERSION = 2
+MAX_DISTRICTS_PER_DIVAR_REQUEST = 15
+# These current catalog entries make Map API silently drop the whole district filter.
+UNUSABLE_DIVAR_DISTRICT_IDS = frozenset({206, 943})
 REQUIREMENT_VALUES = {"required", "preferred", "irrelevant"}
 ROOM_QUERY_VALUES = {
     0: "بدون اتاق",
@@ -202,6 +205,10 @@ def validate_profile(payload: dict[str, Any]) -> dict[str, Any]:
         district_id = _integer(value)
         if district_id is None or district_id not in catalog:
             raise SearchProfileError(f"شناسه محله {value} معتبر نیست")
+        if district_id in UNUSABLE_DIVAR_DISTRICT_IDS:
+            raise SearchProfileError(
+                f"محله {catalog[district_id]['name']} دیگر در جست‌وجوی فعلی دیوار فعال نیست"
+            )
         if district_id not in district_ids:
             district_ids.append(district_id)
     if district_scope == "selected" and not district_ids:
@@ -331,3 +338,33 @@ def crawl_url_for_profile(profile: dict[str, Any]) -> str:
     return urlunparse(
         ("https", "divar.ir", "/s/tehran/rent-apartment", "", encoded, "")
     )
+
+
+def crawl_urls_for_profile(profile: dict[str, Any]) -> list[str]:
+    normalized = normalize_profile(profile)
+    url = crawl_url_for_profile(normalized)
+    district_ids = [
+        int(item)
+        for item in normalized.get("criteria", {}).get("district_ids", [])
+        if int(item) not in UNUSABLE_DIVAR_DISTRICT_IDS
+    ]
+    if (
+        normalized.get("criteria", {}).get("district_scope") == "selected"
+        and not district_ids
+    ):
+        return []
+    if len(district_ids) <= MAX_DISTRICTS_PER_DIVAR_REQUEST:
+        if district_ids == normalized.get("criteria", {}).get("district_ids", []):
+            return [url]
+
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+    urls: list[str] = []
+    for offset in range(0, len(district_ids), MAX_DISTRICTS_PER_DIVAR_REQUEST):
+        chunk = district_ids[offset:offset + MAX_DISTRICTS_PER_DIVAR_REQUEST]
+        chunk_query = {key: list(values) for key, values in query.items()}
+        chunk_query["districts"] = [",".join(str(item) for item in chunk)]
+        urls.append(
+            urlunparse(parsed._replace(query=urlencode(chunk_query, doseq=True)))
+        )
+    return urls

@@ -60,7 +60,7 @@ ROUTE_DESCRIPTIONS = {
     ("GET", "/api/profile"): ("پروفایل و کاتالوگ محله", "approved"),
     ("GET", "/api/calibration"): ("زوج ثابت بعدی و پیشرفت", "profile required"),
     ("GET", "/api/listings"): ("نتایج شخصی‌شده", "calibration complete"),
-    ("GET", "/api/scan/status"): ("وضعیت اسکن مشترک پس‌زمینه", "profile required"),
+    ("GET", "/api/scan/status"): ("وضعیت اسکن فعال، صف و پیشرفت واقعی", "profile required"),
     ("GET", "/api/stats"): ("آمار داشبورد", "calibration complete"),
     ("GET", "/api/config"): ("تنظیمات امن کاربر", "calibration complete"),
     ("GET", "/api/learning"): ("وضعیت موتور سلیقه", "calibration complete"),
@@ -72,7 +72,7 @@ ROUTE_DESCRIPTIONS = {
     ("POST", "/api/admin/users/status"): ("تأیید، رد یا تعلیق", "admin + CSRF"),
     ("POST", "/api/profile"): ("ثبت پروفایل و شروع onboarding تازه", "approved + CSRF"),
     ("POST", "/api/calibration"): ("ثبت اتمیک یک انتخاب", "profile required + CSRF"),
-    ("POST", "/api/scan"): ("تازه‌سازی موجودی مشترک", "profile required + CSRF"),
+    ("POST", "/api/scan"): ("اسکن متمرکز پروفایل کاربر", "profile required + CSRF"),
     ("POST", "/api/feedback"): ("ثبت بازخورد آگهی", "calibration complete + CSRF"),
     ("POST", "/api/comparison"): ("ثبت مقایسه ادامه‌دار", "calibration complete + CSRF"),
     ("POST", "/api/personalization/reset"): ("پاک‌کردن یادگیری همان کاربر", "calibration complete + CSRF"),
@@ -373,9 +373,9 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TD
-    Requests[درخواست هم‌زمان کاربران] --> Queue[ادغام درخواست‌ها + صف تکمیلی فیلتر تازه]
-    Queue --> Profiles[پروفایل‌های کامل و تأییدشده]
-    Profiles --> URLs[URLهای دیوار ساخته‌شده از پاسخ‌ها]
+    Requests[درخواست هم‌زمان کاربران] --> Queue[اشتراک فقط برای پروفایل همسان + صف مستقل پروفایل متفاوت]
+    Queue --> Profiles[پروفایل همان کاربر و بودجه کامل جزئیات]
+    Profiles --> URLs[قطعه‌های حداکثر 15 محله فعال دیوار]
     URLs --> Map[Map API + bbox splitting]
     Map --> Merge[ادغام و حذف token تکراری]
     Merge --> Early[الک قطعی خلاصه]
@@ -392,7 +392,9 @@ flowchart TD
 ```
 
 - spam پیش از «همه»، آمار، مقایسه و اعلان حذف می‌شود.
-- درخواست‌های هم‌زمان رد نمی‌شوند؛ URL مشترک به اسکن جاری ملحق و URL تازه در یک دور تکمیلی خودکار پوشش داده می‌شود.
+- درخواست‌های هم‌زمان رد نمی‌شوند؛ پروفایل همسان به اسکن جاری ملحق و هر پروفایل متفاوت به‌صورت یک job مستقل با سهم کامل جزئیات اجرا می‌شود.
+- Map API دیوار بیش از ۱۵ محله یا دو شناسه ناسازگار شناخته‌شده را بی‌صدا نادیده می‌گیرد؛ محله‌های انتخابی در قطعه‌های امن کرال و سپس با token ادغام می‌شوند.
+- اسکن محدود کاربر هرگز آگهی خارج از محدوده خودش را منقضی نمی‌کند و شمار خلاصه/جزئیات حین اجرا در جدول `scans` به‌روز می‌شود.
 - شخصی‌سازی نمی‌تواند رد سخت، بودجه نهایی، محله انتخابی یا الزامات امکانات را نجات دهد.
 - آگهی منقضی غیرفعال می‌شود؛ تاریخچه برای یادگیری باقی می‌ماند.
 - نسخه عمومی AI تصویری ندارد.
@@ -444,7 +446,7 @@ sequenceDiagram
 |---|---|---|---|
 | حساب و تأیید | `auth.py`, `dashboard.py`, `db.py` | `test_auth.py` | CSRF، ابطال نشست، route gate |
 | معیار و محله | `search_profile.py`, `setup.*`, neighborhood data | `test_search_profile.py`, `test_scoring.py` | لیست و نقشه موبایل/دسکتاپ |
-| crawler و انقضا | `divar_client.py`, `service.py`, `db.py` | `test_parser.py`, `test_service.py` | scan ناقص نباید archive جمعی کند |
+| crawler و انقضا | `divar_client.py`, `service.py`, `db.py`, `search_profile.py` | `test_parser.py`, `test_service.py`, `test_search_profile.py` | قطعه محله، قیمت detail، progress و archive محدود |
 | spam و امتیاز | `scoring.py`, `neighborhoods.py` | `test_scoring.py`, `test_dashboard.py` | «همه»، آمار و comparison باید پاک باشند |
 | سلیقه و onboarding | `personalization.py`, `dashboard.py`, `db.py`, `calibration.*` | `test_personalization.py`, `test_calibration.py` | ۱۲ انتخاب، replay، refresh و redirect |
 | داشبورد و sort | `app.js`, `index.html`, `dashboard.py` | `test_dashboard.py` | Playwright در desktop/mobile |

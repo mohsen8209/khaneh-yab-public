@@ -14,6 +14,18 @@ class DashboardTests(unittest.TestCase):
     def test_dashboard_port_cannot_be_shared_by_stale_processes(self) -> None:
         self.assertFalse(DashboardServer.allow_reuse_address)
 
+    def test_profile_catalog_hides_only_map_api_breaking_districts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            app = DashboardApp(
+                load_config(), database=Database(Path(directory) / "test.sqlite3")
+            )
+
+            district_ids = {item["id"] for item in app.profile_payload(1)["districts"]}
+
+            self.assertNotIn(206, district_ids)
+            self.assertNotIn(943, district_ids)
+            self.assertIn(209, district_ids)
+
     def test_pending_summaries_are_hidden_from_ranked_list(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             database = Database(Path(directory) / "test.sqlite3")
@@ -195,9 +207,10 @@ class DashboardTests(unittest.TestCase):
             release = threading.Event()
 
             def fake_run_scan(
-                detail_limit=None, *, user_initiated=False, source_urls=None
+                detail_limit=None, *, user_initiated=False, source_urls=None,
+                archive_missing=True, user_id=None,
             ):
-                calls.append((detail_limit, user_initiated))
+                calls.append((detail_limit, user_initiated, archive_missing))
                 started.set()
                 release.wait(timeout=2)
                 return {
@@ -239,16 +252,14 @@ class DashboardTests(unittest.TestCase):
             app = DashboardApp(
                 load_config(), database=Database(Path(directory) / "test.sqlite3")
             )
-            available_urls = ["https://divar.ir/s/tehran/rent-apartment?rent=-30"]
             calls: list[tuple[str, ...]] = []
             first_started = threading.Event()
             release_first = threading.Event()
             second_finished = threading.Event()
 
-            app._source_urls = lambda: list(available_urls)
-
             def fake_run_scan(
-                detail_limit=None, *, user_initiated=False, source_urls=None
+                detail_limit=None, *, user_initiated=False, source_urls=None,
+                archive_missing=True, user_id=None,
             ):
                 calls.append(tuple(source_urls or []))
                 if len(calls) == 1:
@@ -267,13 +278,13 @@ class DashboardTests(unittest.TestCase):
                 }
 
             app.run_scan = fake_run_scan
-            first = app.request_scan(user_initiated=True)
+            app._source_urls_for_user = lambda user_id: [
+                f"https://divar.ir/s/tehran/rent-apartment?user={user_id}"
+            ]
+            first = app.request_scan(user_initiated=True, user_id=1)
             self.assertTrue(first_started.wait(timeout=1))
 
-            available_urls.append(
-                "https://divar.ir/s/tehran/rent-apartment?rent=-45"
-            )
-            second = app.request_scan(user_initiated=True)
+            second = app.request_scan(user_initiated=True, user_id=2)
 
             self.assertTrue(second["accepted"])
             self.assertTrue(second["shared"])
@@ -288,15 +299,63 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(
                 calls,
                 [
-                    ("https://divar.ir/s/tehran/rent-apartment?rent=-30",),
-                    (
-                        "https://divar.ir/s/tehran/rent-apartment?rent=-30",
-                        "https://divar.ir/s/tehran/rent-apartment?rent=-45",
-                    ),
+                    ("https://divar.ir/s/tehran/rent-apartment?user=1",),
+                    ("https://divar.ir/s/tehran/rent-apartment?user=2",),
                 ],
             )
             self.assertFalse(app.scan_status()["running"])
             self.assertFalse(app.scan_status()["queued"])
+
+    def test_each_queued_user_profile_gets_an_independent_detail_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            app = DashboardApp(
+                load_config(), database=Database(Path(directory) / "test.sqlite3")
+            )
+            calls: list[tuple[tuple[str, ...], bool]] = []
+            first_started = threading.Event()
+            release_first = threading.Event()
+            all_finished = threading.Event()
+            app._source_urls_for_user = lambda user_id: [
+                f"profile-{user_id}-a",
+                f"profile-{user_id}-b",
+            ]
+
+            def fake_run_scan(
+                detail_limit=None, *, user_initiated=False, source_urls=None,
+                archive_missing=True, user_id=None,
+            ):
+                calls.append((tuple(source_urls or []), archive_missing, user_id))
+                if len(calls) == 1:
+                    first_started.set()
+                    release_first.wait(timeout=2)
+                if len(calls) == 3:
+                    all_finished.set()
+                return {
+                    "summary_count": 100,
+                    "detail_count": 35,
+                    "scored_count": 35,
+                    "alert_count": 0,
+                    "expired_count": 0,
+                    "filtered_count": 0,
+                    "detail_errors": [],
+                }
+
+            app.run_scan = fake_run_scan
+            app.request_scan(user_initiated=True, user_id=1)
+            self.assertTrue(first_started.wait(timeout=1))
+            app.request_scan(user_initiated=True, user_id=2)
+            app.request_scan(user_initiated=True, user_id=3)
+            release_first.set()
+            self.assertTrue(all_finished.wait(timeout=1))
+
+            self.assertEqual(
+                calls,
+                [
+                    (("profile-1-a", "profile-1-b"), False, 1),
+                    (("profile-2-a", "profile-2-b"), False, 2),
+                    (("profile-3-a", "profile-3-b"), False, 3),
+                ],
+            )
 
 
 if __name__ == "__main__":

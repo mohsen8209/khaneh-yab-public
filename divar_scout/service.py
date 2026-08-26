@@ -63,6 +63,7 @@ class ScoutService:
         *,
         detail_limit: int | None = None,
         source_urls: list[str] | None = None,
+        archive_missing: bool = True,
     ) -> ScanResult:
         scan_id = self.database.start_scan()
         was_empty = self.database.stats().get("total", 0) == 0
@@ -95,6 +96,12 @@ class ScoutService:
             else:
                 summaries = self.client.fetch_summaries()
                 archive_safe = getattr(self.client, "last_fetch_complete", True)
+            self.database.update_scan_progress(
+                scan_id,
+                summary_count=len(summaries),
+                detail_count=detail_count,
+                filtered_count=len(filtered),
+            )
             needs_detail: list[Listing] = []
             newly_discovered: set[str] = set()
             baseline_is_silent = was_empty and not self.config.notifications.get(
@@ -127,11 +134,17 @@ class ScoutService:
                     )
                     needs_detail.append(summary)
 
-            if summaries and archive_safe:
+            if summaries and archive_safe and archive_missing:
                 expired_count = self.database.archive_missing(
                     {summary.token for summary in summaries}
                 )
             self.database.archive_filtered(filtered)
+            self.database.update_scan_progress(
+                scan_id,
+                summary_count=len(summaries),
+                detail_count=detail_count,
+                filtered_count=len(filtered),
+            )
 
             limit = detail_limit if detail_limit is not None else int(
                 self.config.scan["detail_limit_per_run"]
@@ -159,6 +172,12 @@ class ScoutService:
                         )
                 except Exception as error:  # A single withdrawn ad must not stop the scan.
                     errors.append(f"{summary.token}: {error}")
+                self.database.update_scan_progress(
+                    scan_id,
+                    summary_count=len(summaries),
+                    detail_count=detail_count,
+                    filtered_count=len(filtered),
+                )
 
             records = self.database.list_records(limit=2000)
             scored: list[tuple[Listing, ScoreResult, bool]] = []
@@ -287,12 +306,37 @@ class ScoutService:
             return -1000
         profile = self.config.profile
         score = 1000 if newly_discovered else 0
-        score += min(listing.image_count, 10) * 2
-        score += min(max((listing.size or 60) - 60, 0), 60) / 6
-        if (listing.rent or 0) <= profile["ideal_rent"]:
-            score += 8
-        if (listing.deposit or 0) <= profile["ideal_deposit"]:
-            score += 5
+        score += min(listing.image_count, 8) * 1.5
+        ideal_size = int(profile.get("ideal_size") or profile.get("min_size", 60) + 20)
+        if listing.size is not None:
+            score += max(0, 12 - abs(listing.size - ideal_size) / 5)
+        else:
+            score -= 15
+        if listing.deposit is None:
+            score -= 120
+        if listing.rent is None:
+            score -= 120
+        if listing.deposit is not None and listing.rent is not None:
+            if (
+                listing.deposit <= profile["hard_max_deposit"]
+                and listing.rent <= profile["hard_max_rent"]
+            ):
+                score += 25
+            elif (
+                listing.deposit <= profile["stretch_max_deposit"]
+                and listing.rent <= profile["stretch_max_rent"]
+            ):
+                score += 8
+            else:
+                score -= 100
+            if listing.rent <= profile["ideal_rent"]:
+                score += 8
+            if listing.deposit <= profile["ideal_deposit"]:
+                score += 5
+        if profile.get("parking_required") and listing.has_parking:
+            score += 6
+        if profile.get("elevator_required") and listing.has_elevator:
+            score += 6
         if listing.is_stock_image:
             score -= 50
         if listing.image_count <= 1:

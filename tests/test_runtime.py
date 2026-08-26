@@ -163,7 +163,7 @@ class RuntimeTests(unittest.TestCase):
                     process.terminate()
                     output, _ = process.communicate(timeout=5)
                     self.fail(f"PaaS entrypoint did not become healthy:\n{output}")
-                self.assertEqual(payload, {"ok": True, "release": "0.1.2"})
+                self.assertEqual(payload, {"ok": True, "release": "0.1.3"})
                 self.assertTrue((root / "data" / "divar_scout.sqlite3").is_file())
             finally:
                 if process.poll() is None:

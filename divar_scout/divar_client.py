@@ -50,6 +50,8 @@ def parse_money(value: str | int | None) -> int | None:
     if value is None or isinstance(value, int):
         return value
     normalized = normalize_digits(value).replace("تومان", "").strip()
+    if "رایگان" in normalized:
+        return 0
     number_match = re.search(r"\d+(?:[.,]\d+)?", normalized.replace(",", ""))
     if not number_match:
         return None
@@ -472,8 +474,22 @@ def parse_detail(payload: dict[str, Any], summary: Listing) -> Listing:
     listing.url = payload.get("share", {}).get("web_url") or listing.url
     listing.description = description or schema.get("description", "")
     listing.district = web_info.get("district_persian") or engagement.get("district")
-    listing.deposit = parse_integer(engagement.get("credit")) or parse_money(rows.get("ودیعه")) or listing.deposit
-    listing.rent = parse_integer(engagement.get("rent")) or parse_money(rows.get("اجارهٔ ماهانه")) or listing.rent
+    row_deposit = parse_money(rows.get("ودیعه"))
+    row_rent = parse_money(rows.get("اجارهٔ ماهانه"))
+    listing.deposit = (
+        row_deposit
+        if row_deposit is not None
+        else listing.deposit
+        if listing.deposit is not None
+        else parse_integer(engagement.get("credit"))
+    )
+    listing.rent = (
+        row_rent
+        if row_rent is not None
+        else listing.rent
+        if listing.rent is not None
+        else parse_integer(engagement.get("rent"))
+    )
     listing.size = parse_integer(rows.get("متراژ")) or listing.size
     listing.rooms = parse_integer(rows.get("اتاق")) or listing.rooms
     listing.build_year = build_year
