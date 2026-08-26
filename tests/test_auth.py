@@ -8,6 +8,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest.mock import patch
 
 from divar_scout.auth import AuthError, AuthService, verify_password
 from divar_scout.config import load_config
@@ -296,11 +297,12 @@ class AuthHttpTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
 
-        def broken_list_users():
-            raise Exception("database connection dropped")
-
-        self.server.app.auth.list_users = broken_list_users
-        status, payload, headers = self.request(admin_browser, "/api/admin/users")
+        with patch.object(
+            self.server.app.auth,
+            "list_users",
+            side_effect=Exception("database connection dropped"),
+        ):
+            status, payload, headers = self.request(admin_browser, "/api/admin/users")
 
         self.assertEqual(status, 500)
         self.assertEqual(headers.get_content_type(), "application/json")
