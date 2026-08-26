@@ -347,6 +347,10 @@ class DashboardTests(unittest.TestCase):
             app.request_scan(user_initiated=True, user_id=3)
             release_first.set()
             self.assertTrue(all_finished.wait(timeout=1))
+            for _ in range(20):
+                if not app.scan_status()["running"]:
+                    break
+                time.sleep(0.05)
 
             self.assertEqual(
                 calls,
@@ -356,6 +360,48 @@ class DashboardTests(unittest.TestCase):
                     (("profile-3-a", "profile-3-b"), False, 3),
                 ],
             )
+
+    def test_onboarding_scan_automatically_tops_up_until_calibration_is_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            app = DashboardApp(
+                load_config(), database=Database(Path(directory) / "test.sqlite3")
+            )
+            calls: list[int | None] = []
+            finished = threading.Event()
+
+            def fake_run_scan(
+                detail_limit=None, *, user_initiated=False, source_urls=None,
+                archive_missing=True, user_id=None,
+            ):
+                calls.append(user_id)
+                if len(calls) == 2:
+                    finished.set()
+                return {
+                    "summary_count": 100,
+                    "detail_count": 35,
+                    "scored_count": 35,
+                    "alert_count": 0,
+                    "expired_count": 0,
+                    "filtered_count": 10,
+                    "detail_errors": [],
+                }
+
+            app.run_scan = fake_run_scan
+            app._source_urls_for_user = lambda user_id: ["profile-url"]
+            app._needs_calibration_top_up = (
+                lambda user_id, result, batch: batch == 1
+            )
+
+            result = app.request_scan(user_initiated=True, user_id=7)
+
+            self.assertTrue(result["accepted"])
+            self.assertTrue(finished.wait(timeout=1))
+            for _ in range(20):
+                if not app.scan_status()["running"]:
+                    break
+                time.sleep(0.05)
+            self.assertEqual(calls, [7, 7])
+            self.assertFalse(app.scan_status()["running"])
 
 
 if __name__ == "__main__":

@@ -102,6 +102,18 @@ git status --short
 4. یک ثبت‌نام آزمایشی باید pending بماند تا مدیر آن را تأیید کند.
 5. با restart سرویس، حساب‌ها و آگهی‌ها باید باقی بمانند.
 
+پس از هر deploy، تست واقعی API را با یک حساب تأییدشده اجرا کنید. این تست علاوه بر
+سلامت فنی، منطبق‌بودن داده‌ها با قرارداد پروفایل و وجود ظرفیت کامل ۱۲ مقایسه را
+کنترل می‌کند:
+
+```bash
+export KHANEYAB_SMOKE_USERNAME="your-approved-user"
+read -s -p "Password: " KHANEYAB_SMOKE_PASSWORD; echo
+export KHANEYAB_SMOKE_PASSWORD
+python scripts/smoke_production.py --expected-release 0.1.4
+unset KHANEYAB_SMOKE_PASSWORD
+```
+
 اگر Build موفق بود ولی سایت باز نشد، اول host و port را کنترل کنید. اگر برنامه با خطای
 persistent volume متوقف شد، Volume یا `KHANEYAB_DATA_DIR=/data` تنظیم نشده است.
 اگر GitHub روی commit جدید است ولی `/healthz` هنوز نسخه قبلی یا پاسخ بدون `release`

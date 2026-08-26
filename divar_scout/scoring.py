@@ -103,6 +103,7 @@ def profile_scope_exclusion_reason(
         return getattr(listing, name, default)
 
     profile = config.profile
+    strict_contract = bool(profile.get("strict_contract", False))
     deposit = value("deposit")
     rent = value("rent")
     if deposit is None or rent is None:
@@ -120,12 +121,16 @@ def profile_scope_exclusion_reason(
         if not (min_lon <= longitude <= max_lon and min_lat <= latitude <= max_lat):
             return "موقعیت آگهی بیرون از محدوده نقشه فیلتر دیوار است"
     size = value("size")
+    if strict_contract and size is None:
+        return "متراژ آگهی مشخص نیست و انطباق آن با معیار کاربر قابل تأیید نیست"
     if size is not None and size < int(profile.get("min_size", 0)):
         return "متراژ کمتر از حداقل موردنظر است"
     maximum_size = profile.get("max_size")
     if size is not None and maximum_size is not None and size > int(maximum_size):
         return "متراژ بیشتر از حداکثر موردنظر است"
     rooms = value("rooms")
+    if strict_contract and rooms is None:
+        return "تعداد خواب آگهی مشخص نیست و انطباق آن با معیار کاربر قابل تأیید نیست"
     if rooms is not None and rooms < int(profile.get("min_rooms", 0)):
         return "تعداد خواب کمتر از حداقل موردنظر است"
     maximum_rooms = profile.get("max_rooms")
@@ -133,17 +138,31 @@ def profile_scope_exclusion_reason(
         return "تعداد خواب بیشتر از حداکثر موردنظر است"
     age = value("age")
     maximum_age = profile.get("hard_max_age")
+    if strict_contract and maximum_age is not None and age is None:
+        return "سن بنا مشخص نیست و سقف سن موردنظر کاربر قابل تأیید نیست"
     if age is not None and maximum_age is not None and age > int(maximum_age):
         return "سن بنا بیشتر از حداکثر قابل قبول است"
     floor = _floor_number(value("floor"))
     minimum_floor = profile.get("min_floor")
     maximum_floor = profile.get("max_floor")
+    if (
+        strict_contract
+        and (minimum_floor is not None or maximum_floor is not None)
+        and floor is None
+    ):
+        return "طبقه آگهی مشخص نیست و محدوده طبقه موردنظر کاربر قابل تأیید نیست"
     if floor is not None and minimum_floor is not None and floor < int(minimum_floor):
         return "طبقه پایین‌تر از محدوده قابل قبول است"
     if floor is not None and maximum_floor is not None and floor > int(maximum_floor):
         return "طبقه بالاتر از محدوده قابل قبول است"
     building_floors = value("building_floors")
     maximum_building_floors = profile.get("max_building_floors")
+    if (
+        strict_contract
+        and maximum_building_floors is not None
+        and building_floors is None
+    ):
+        return "تعداد طبقات ساختمان مشخص نیست و معیار کاربر قابل تأیید نیست"
     if (
         building_floors is not None
         and maximum_building_floors is not None
@@ -152,6 +171,12 @@ def profile_scope_exclusion_reason(
         return "تعداد طبقات ساختمان بیشتر از حداکثر موردنظر است"
     units_per_floor = value("units_per_floor")
     maximum_units_per_floor = profile.get("max_units_per_floor")
+    if (
+        strict_contract
+        and maximum_units_per_floor is not None
+        and units_per_floor is None
+    ):
+        return "تعداد واحد در طبقه مشخص نیست و معیار کاربر قابل تأیید نیست"
     if (
         units_per_floor is not None
         and maximum_units_per_floor is not None

@@ -1,7 +1,7 @@
 # معماری خانه‌یاب عمومی
 
 > این سند خودکار از کد واقعی تولید شده است. منبع ویرایش `scripts/update_architecture.py` است.  
-> اثرانگشت ورودی‌های معماری: `9476ccbf9fb7b189`
+> اثرانگشت ورودی‌های معماری: `9d45d942dc282502`
 
 ## روش استفاده برای توسعه
 
@@ -72,10 +72,18 @@ flowchart TD
     Profiles --> URLs[قطعه‌های حداکثر 15 محله فعال دیوار]
     URLs --> Map[Map API + bbox splitting]
     Map --> Merge[ادغام و حذف token تکراری]
-    Merge --> Early[الک قطعی خلاصه]
+    Merge --> ResponseGate{حداقل یک خلاصه غیر spam؟}
+    ResponseGate -->|خیر| Retry[یک retry کامل]
+    Retry --> ResponseGate
+    ResponseGate -->|دومین شکست| Preserve[خطای شفاف + حفظ موجودی قبلی]
+    ResponseGate -->|بله| Early
+    Early[الک قطعی خلاصه]
     Early --> Details[اولویت جزئیات تازه‌ها تا detail limit]
     Details --> HardSpam[الک قطعی جزئیات]
-    HardSpam --> Store[(listings مشترک)]
+    HardSpam --> CalibrationGate{ظرفیت 12 مقایسه آماده است؟}
+    CalibrationGate -->|خیر + پیشرفت واقعی| Details
+    CalibrationGate -->|بله یا سقف 3 batch| Store
+    Store[(listings مشترک)]
     Store --> Base[امتیاز پایه 20 = محله 8 + ارزش 5 + ملک 3 + اعتبار 3 + تازگی 1]
     Base --> UserScope[شروط سخت پروفایل در زمان درخواست]
     UserScope --> Personal[اصلاح تدریجی حداکثر ±2]
@@ -88,8 +96,10 @@ flowchart TD
 - spam پیش از «همه»، آمار، مقایسه و اعلان حذف می‌شود.
 - درخواست‌های هم‌زمان رد نمی‌شوند؛ پروفایل همسان به اسکن جاری ملحق و هر پروفایل متفاوت به‌صورت یک job مستقل با سهم کامل جزئیات اجرا می‌شود.
 - Map API دیوار بیش از ۱۵ محله یا دو شناسه ناسازگار شناخته‌شده را بی‌صدا نادیده می‌گیرد؛ محله‌های انتخابی در قطعه‌های امن کرال و سپس با token ادغام می‌شوند.
+- پاسخ خالی، تماماً spam، ناقص یا دارای خطای یکی از قطعه‌های محله یک‌بار کامل retry می‌شود؛ تکرار آن موفقیت محسوب نمی‌شود و موجودی قبلی را تغییر نمی‌دهد.
 - اسکن محدود کاربر هرگز آگهی خارج از محدوده خودش را منقضی نمی‌کند و شمار خلاصه/جزئیات حین اجرا در جدول `scans` به‌روز می‌شود.
-- شخصی‌سازی نمی‌تواند رد سخت، بودجه نهایی، محله انتخابی یا الزامات امکانات را نجات دهد.
+- onboarding در صورت کمبود فایل معتبر، تا سه batch دارای پیشرفت را خودکار ادامه می‌دهد و کاربر را برای تکمیل ظرفیت ۱۲ مقایسه مجبور به اسکن دستی دوباره نمی‌کند.
+- برای پروفایل کاربر، مقدار نامشخص در یک معیار سخت نیز خارج از قرارداد است؛ شخصی‌سازی نمی‌تواند رد سخت، بودجه نهایی، محله انتخابی یا الزامات امکانات را نجات دهد.
 - آگهی منقضی غیرفعال می‌شود؛ تاریخچه برای یادگیری باقی می‌ماند.
 - نسخه عمومی AI تصویری ندارد.
 
@@ -131,7 +141,7 @@ sequenceDiagram
 | `runtime.py` | ورودی production، Volume، ادمین bootstrap و اسکن پس‌زمینه PaaS | `environment_flag, validate_paas_runtime, bootstrap_admin, scan_forever, run_paas` |
 | `scoring.py` | الک قطعی، شروط سخت و امتیاز پایه از ۲۰ | `listing_exclusion_reason, profile_scope_exclusion_reason, score_listing` |
 | `search_profile.py` | اعتبارسنجی پاسخ‌ها و ساخت جست‌وجوی دیوار برای پروفایل | `SearchProfileError, districts, district_catalog, empty_profile, normalize_profile, validate_profile` |
-| `service.py` | هماهنگ‌کننده اسکن، جزئیات، آرشیو، امتیاز و اعلان | `ScanResult, ScoutService, merge_summary` |
+| `service.py` | هماهنگ‌کننده اسکن، retry پاسخ ناقص، جزئیات، آرشیو، امتیاز و اعلان | `ScanResult, ScoutService, merge_summary` |
 
 ## صفحات اصلی
 
@@ -213,7 +223,7 @@ erDiagram
 | سلیقه و onboarding | `personalization.py`, `dashboard.py`, `db.py`, `calibration.*` | `test_personalization.py`, `test_calibration.py` | ۱۲ انتخاب، replay، refresh و redirect |
 | داشبورد و sort | `app.js`, `index.html`, `dashboard.py` | `test_dashboard.py` | Playwright در desktop/mobile |
 | اعلان | `notifier.py`, `service.py`, `config.json` | `test_service.py` | فقط آگهی تازه و یک‌بار |
-| PaaS و پایداری | `app.py`, `runtime.py`, `config.py`, `db.py` | `test_runtime.py`, `test_backup_database.py` | یک Pod، `/data`، Secret و health check |
+| PaaS و پایداری | `app.py`, `runtime.py`, `config.py`, `db.py`, `scripts/smoke_production.py` | `test_runtime.py`, `test_backup_database.py`, `test_production_smoke.py` | یک Pod، `/data`، Secret، health و smoke واقعی قرارداد |
 | معماری | `scripts/update_architecture.py`, `AGENTS.md` | `test_architecture.py` | `--check` باید سبز باشد |
 
 ## اجرای محلی و گیت نهایی

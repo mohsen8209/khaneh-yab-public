@@ -98,6 +98,7 @@ class CalibrationTests(unittest.TestCase):
         first = self.app.calibration(self.user.id)
         refreshed = self.app.calibration(self.user.id)
         self.assertTrue(first["ready"])
+        self.assertGreaterEqual(first["available_pairs"], 12)
         self.assertEqual(
             (first["left"]["token"], first["right"]["token"]),
             (refreshed["left"]["token"], refreshed["right"]["token"]),

@@ -88,7 +88,11 @@ class EmptyClient:
 class IncompleteInventoryClient:
     last_fetch_complete = False
 
+    def __init__(self) -> None:
+        self.summary_calls = 0
+
     def fetch_summaries(self, source_url: str | None = None) -> list[Listing]:
+        self.summary_calls += 1
         return [listing("fresh")]
 
     def fetch_detail(self, summary: Listing) -> Listing:
@@ -114,6 +118,35 @@ class FilteringClient:
         if summary.token != "valid":
             raise AssertionError("Filtered summaries must not fetch details")
         return listing("valid", detailed=True)
+
+
+class TransientAllSpamClient:
+    def __init__(self) -> None:
+        self.summary_calls = 0
+
+    def fetch_summaries(self, source_url: str | None = None) -> list[Listing]:
+        self.summary_calls += 1
+        if self.summary_calls == 1:
+            spam = listing("transient-spam")
+            spam.image_count = 1
+            spam.images = spam.images[:1]
+            return [spam]
+        return [listing("recovered")]
+
+    def fetch_detail(self, summary: Listing) -> Listing:
+        return listing(summary.token, detailed=True)
+
+
+class PersistentAllSpamClient:
+    def __init__(self) -> None:
+        self.summary_calls = 0
+
+    def fetch_summaries(self, source_url: str | None = None) -> list[Listing]:
+        self.summary_calls += 1
+        spam = listing(f"persistent-spam-{self.summary_calls}")
+        spam.image_count = 1
+        spam.images = spam.images[:1]
+        return [spam]
 
 
 class FakeNotifier:
@@ -283,7 +316,7 @@ class ServiceNotificationTests(unittest.TestCase):
                 {"baseline", "fresh"},
             )
 
-    def test_focused_profile_scan_never_archives_other_profiles_inventory(self) -> None:
+    def test_focused_incomplete_scan_fails_without_touching_shared_inventory(self) -> None:
         raw = copy.deepcopy(load_config().raw)
         raw["scan"]["request_delay_seconds"] = 0
         config = AppConfig(raw=raw, path=Path("test-config.json"))
@@ -294,15 +327,18 @@ class ServiceNotificationTests(unittest.TestCase):
             )
             service = ScoutService(config, database=database, client=IncompleteInventoryClient())
 
-            result = service.run_once(
-                source_urls=["https://divar.ir/s/tehran/rent-apartment?districts=85"],
-                archive_missing=False,
-            )
+            with self.assertRaisesRegex(RuntimeError, "موجودی قبلی حفظ شد"):
+                service.run_once(
+                    source_urls=[
+                        "https://divar.ir/s/tehran/rent-apartment?districts=85"
+                    ],
+                    archive_missing=False,
+                )
 
-            self.assertEqual(result.expired_count, 0)
+            self.assertEqual(service.client.summary_calls, 2)
             self.assertEqual(
                 {item["token"] for item in database.list_records()},
-                {"other-profile", "fresh"},
+                {"other-profile"},
             )
 
     def test_scan_progress_is_persisted_before_the_scan_finishes(self) -> None:
@@ -331,6 +367,50 @@ class ServiceNotificationTests(unittest.TestCase):
             self.assertIn((5, 0, 0), progress)
             self.assertIn((5, 0, 4), progress)
             self.assertEqual(progress[-1], (5, 1, 4))
+
+    def test_all_spam_summary_response_is_retried_once_before_committing(self) -> None:
+        raw = copy.deepcopy(load_config().raw)
+        raw["scan"]["request_delay_seconds"] = 0
+        config = AppConfig(raw=raw, path=Path("test-config.json"))
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "test.sqlite3")
+            client = TransientAllSpamClient()
+            service = ScoutService(config, database=database, client=client)
+
+            result = service.run_once(
+                source_urls=["https://divar.ir/s/tehran/rent-apartment?districts=85"],
+                archive_missing=False,
+            )
+
+            self.assertEqual(client.summary_calls, 2)
+            self.assertEqual(result.summary_retry_count, 1)
+            self.assertEqual(result.summary_count, 1)
+            self.assertEqual(result.detail_count, 1)
+            self.assertEqual(result.filtered_count, 0)
+
+    def test_repeated_all_spam_response_fails_instead_of_reporting_false_success(self) -> None:
+        raw = copy.deepcopy(load_config().raw)
+        raw["scan"]["request_delay_seconds"] = 0
+        config = AppConfig(raw=raw, path=Path("test-config.json"))
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "test.sqlite3")
+            database.upsert_listing(listing("existing", detailed=True), detail_fetched=True)
+            client = PersistentAllSpamClient()
+            service = ScoutService(config, database=database, client=client)
+
+            with self.assertRaisesRegex(RuntimeError, "موجودی قبلی حفظ شد"):
+                service.run_once(
+                    source_urls=[
+                        "https://divar.ir/s/tehran/rent-apartment?districts=85"
+                    ],
+                    archive_missing=True,
+                )
+
+            self.assertEqual(client.summary_calls, 2)
+            self.assertIsNotNone(database.get_listing("existing"))
+            last_scan = database.stats()["last_scan"]
+            self.assertIsNotNone(last_scan["finished_at"])
+            self.assertIn("موجودی قبلی حفظ شد", last_scan["error"])
 
 
 if __name__ == "__main__":

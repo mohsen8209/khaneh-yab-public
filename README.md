@@ -76,6 +76,24 @@ python -m divar_scout dashboard
 python -m divar_scout watch
 ```
 
+### تست واقعی API پروداکشن
+
+این تست با یک حساب تأییدشده وارد می‌شود، اسکن واقعی همان پروفایل را تا پایان دنبال
+می‌کند، قابل‌استفاده‌بودن خروجی و ظرفیت ۱۲ مقایسه یکتا را می‌سنجد و خانه‌های برگشتی
+را مستقلاً با بودجه، متراژ، خواب، سن، امکانات اجباری، محله، عکس و لینک دیوار تطبیق
+می‌دهد. رمز در مخزن ذخیره نمی‌شود و نشست آزمایشی در پایان logout می‌شود.
+
+```bash
+export KHANEYAB_SMOKE_USERNAME="your-approved-user"
+read -s -p "Password: " KHANEYAB_SMOKE_PASSWORD; echo
+export KHANEYAB_SMOKE_PASSWORD
+python scripts/smoke_production.py --expected-release 0.1.4
+unset KHANEYAB_SMOKE_PASSWORD
+```
+
+گزینه `--read-only` فقط سلامت، ورود، پروفایل و موجودی فعلی مقایسه را کنترل می‌کند و
+اسکن جدیدی شروع نمی‌کند.
+
 داشبورد عمومی در `http://127.0.0.1:8766` باز می‌شود. فایل‌های `start_dashboard.cmd`، `scan_once.cmd` و `watch.cmd` ابتدا از محیط `.venv` همین پوشه استفاده می‌کنند و میان‌برهای ویندوز هستند.
 
 برای اجرای جداگانه هر دو نسخه در دو ترمینال VS Code:

@@ -44,6 +44,7 @@ SESSION_COOKIE = "khane_yab_public_session"
 MAX_BODY_BYTES = 64 * 1024
 CALIBRATION_TARGET = 12
 CALIBRATION_RECORD_LIMIT = 140
+MAX_CALIBRATION_SCAN_BATCHES = 3
 
 
 class DashboardApp:
@@ -253,17 +254,17 @@ class DashboardApp:
             and item.get("detail_fetched_at")
         ][:50]
         eligible = {item["token"]: item for item in eligible_records}
+        compared = self.database.compared_pairs(user_id=user_id)
+        available_pairs = sum(
+            frozenset((left["token"], right["token"])) not in compared
+            for index, left in enumerate(eligible_records)
+            for right in eligible_records[index + 1:]
+        )
         left_token = state.get("current_left_token")
         right_token = state.get("current_right_token")
         if not (left_token in eligible and right_token in eligible):
             if left_token or right_token:
                 self.database.clear_calibration_pair(user_id)
-            compared = self.database.compared_pairs(user_id=user_id)
-            available_pairs = sum(
-                frozenset((left["token"], right["token"])) not in compared
-                for index, left in enumerate(eligible_records)
-                for right in eligible_records[index + 1:]
-            )
             if available_pairs < int(state["remaining"]):
                 return {
                     "ready": False,
@@ -306,6 +307,7 @@ class DashboardApp:
             "left": _public_listing(left),
             "right": _public_listing(right),
             "available": len(eligible),
+            "available_pairs": available_pairs,
             "calibration": public_state,
             "learning": self.learning_state(user_id),
         }
@@ -515,6 +517,7 @@ class DashboardApp:
     ) -> None:
         try:
             current_urls = source_urls
+            calibration_batch = 1
             while True:
                 result = self.run_scan(
                     detail_limit=detail_limit,
@@ -523,6 +526,12 @@ class DashboardApp:
                     archive_missing=archive_missing,
                     user_id=user_id,
                 )
+                if self._needs_calibration_top_up(
+                    user_id, result, calibration_batch
+                ):
+                    calibration_batch += 1
+                    archive_missing = False
+                    continue
                 with self.scan_state_lock:
                     if self._queued_scan_jobs:
                         next_job = sorted(self._queued_scan_jobs)[0]
@@ -530,6 +539,7 @@ class DashboardApp:
                         current_urls = list(next_job)
                         self._active_scan_urls = set(current_urls)
                         archive_missing = False
+                        calibration_batch = 1
                         self._scan_state.update(
                             {
                                 "queued": bool(self._queued_scan_jobs),
@@ -562,6 +572,25 @@ class DashboardApp:
                         "last_error": str(error),
                     }
                 )
+
+    def _needs_calibration_top_up(
+        self,
+        user_id: int | None,
+        result: dict[str, Any],
+        batch: int,
+    ) -> bool:
+        if (
+            user_id is None
+            or batch >= MAX_CALIBRATION_SCAN_BATCHES
+            or int(result.get("detail_count") or 0) <= 0
+            or not self.database.user_profile_complete(user_id)
+            or not self.database.calibration_required(user_id)
+        ):
+            return False
+        state = self.calibration(user_id)
+        return not bool(
+            state.get("ready") or state.get("calibration", {}).get("complete")
+        )
 
 
 class DashboardHandler(BaseHTTPRequestHandler):

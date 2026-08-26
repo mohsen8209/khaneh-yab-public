@@ -223,6 +223,28 @@ class ScoringTests(unittest.TestCase):
             profile_scope_exclusion_reason(good_listing(rent=None), self.config)
         )
 
+    def test_strict_user_contract_rejects_unverifiable_hard_fields(self) -> None:
+        config = load_config()
+        config.raw["profile"].update(
+            {
+                "strict_contract": True,
+                "hard_max_age": 25,
+                "max_building_floors": 8,
+                "max_units_per_floor": 4,
+            }
+        )
+        for changes in (
+            {"size": None},
+            {"rooms": None},
+            {"age": None},
+            {"building_floors": None},
+            {"units_per_floor": None},
+        ):
+            with self.subTest(changes=changes):
+                self.assertIsNotNone(
+                    profile_scope_exclusion_reason(good_listing(**changes), config)
+                )
+
     def test_missing_district_never_crashes_profile_scope_or_scoring(self) -> None:
         config = load_config()
         config.raw["profile"]["allowed_district_names"] = ["پاسداران"]

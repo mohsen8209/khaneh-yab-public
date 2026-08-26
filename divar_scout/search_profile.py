@@ -246,6 +246,7 @@ def config_for_profile(base: AppConfig, profile: dict[str, Any]) -> AppConfig:
     raw["search"]["include_stretch_budget"] = False
     raw["profile"].update(
         {
+            "strict_contract": True,
             "ideal_deposit": criteria["ideal_deposit"],
             "ideal_rent": criteria["ideal_rent"],
             "hard_max_deposit": criteria["hard_max_deposit"],

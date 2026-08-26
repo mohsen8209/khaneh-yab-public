@@ -28,6 +28,8 @@ class ScanResult:
     expired_count: int
     filtered_count: int
     detail_errors: list[str]
+    source_count: int = 1
+    summary_retry_count: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -38,6 +40,8 @@ class ScanResult:
             "expired_count": self.expired_count,
             "filtered_count": self.filtered_count,
             "detail_errors": self.detail_errors,
+            "source_count": self.source_count,
+            "summary_retry_count": self.summary_retry_count,
         }
 
 
@@ -75,24 +79,16 @@ class ScoutService:
         filtered: dict[str, str] = {}
         errors: list[str] = []
         archive_safe = True
+        summary_retry_count = 0
         try:
             if source_urls:
-                merged_summaries: dict[str, Listing] = {}
-                source_errors: list[str] = []
-                for source_url in source_urls:
-                    try:
-                        source_summaries = self.client.fetch_summaries(source_url)
-                        if not getattr(self.client, "last_fetch_complete", True):
-                            archive_safe = False
-                        for summary in source_summaries:
-                            merged_summaries[summary.token] = summary
-                    except Exception as error:
-                        source_errors.append(f"source {source_url}: {error}")
-                if not merged_summaries and source_errors:
-                    raise RuntimeError("همه منابع جست‌وجو ناموفق بودند: " + " | ".join(source_errors))
-                summaries = list(merged_summaries.values())
+                (
+                    summaries,
+                    archive_safe,
+                    source_errors,
+                    summary_retry_count,
+                ) = self._fetch_profile_summaries(source_urls)
                 errors.extend(source_errors)
-                archive_safe = archive_safe and not source_errors
             else:
                 summaries = self.client.fetch_summaries()
                 archive_safe = getattr(self.client, "last_fetch_complete", True)
@@ -231,6 +227,8 @@ class ScoutService:
                 expired_count=expired_count,
                 filtered_count=len(filtered),
                 detail_errors=errors,
+                source_count=len(source_urls) if source_urls else 1,
+                summary_retry_count=summary_retry_count,
             )
             self.database.finish_scan(
                 scan_id,
@@ -251,6 +249,62 @@ class ScoutService:
                 error=str(error),
             )
             raise
+
+    def _fetch_profile_summaries(
+        self, source_urls: list[str]
+    ) -> tuple[list[Listing], bool, list[str], int]:
+        retry_count = 0
+        for attempt in range(2):
+            merged: dict[str, Listing] = {}
+            source_errors: list[str] = []
+            archive_safe = True
+            for source_url in source_urls:
+                try:
+                    source_summaries = self.client.fetch_summaries(source_url)
+                    if not getattr(self.client, "last_fetch_complete", True):
+                        archive_safe = False
+                    for summary in source_summaries:
+                        merged[summary.token] = summary
+                except Exception as error:
+                    source_errors.append(f"source {source_url}: {error}")
+
+            summaries = list(merged.values())
+            if not summaries and source_errors and attempt == 1:
+                raise RuntimeError(
+                    "همه منابع جست‌وجو ناموفق بودند: " + " | ".join(source_errors)
+                )
+            has_clean_summary = any(
+                listing_exclusion_reason(summary) is None for summary in summaries
+            )
+            suspicious_response = not summaries or not has_clean_summary
+            incomplete_response = bool(source_errors) or not archive_safe
+            if (suspicious_response or incomplete_response) and attempt == 0:
+                retry_count = 1
+                time.sleep(1)
+                continue
+            if source_errors:
+                raise RuntimeError(
+                    "بخشی از محدوده جست‌وجوی دیوار پس از تلاش مجدد در دسترس نبود: "
+                    + " | ".join(source_errors)
+                )
+            if not archive_safe:
+                raise RuntimeError(
+                    "پوشش محدوده جست‌وجوی دیوار پس از تلاش مجدد کامل نبود؛ "
+                    "موجودی قبلی حفظ شد"
+                )
+            if suspicious_response:
+                raise RuntimeError(
+                    "پاسخ دیوار پس از تلاش مجدد قابل استفاده نبود؛ "
+                    "موجودی قبلی حفظ شد و می‌توانید کمی بعد دوباره اسکن کنید"
+                )
+            return (
+                summaries,
+                True,
+                [],
+                retry_count,
+            )
+
+        raise RuntimeError("پاسخ منابع جست‌وجو قابل استفاده نبود")
 
     def _score_listing(
         self,
