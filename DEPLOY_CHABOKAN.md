@@ -9,7 +9,8 @@ In the Chabokan service panel:
 
 1. Select Python `3.12`.
 2. Set the service/default port to `8766`.
-3. Add these environment variables before the first deploy:
+3. The first deploy does not require environment variables. `start.sh` supplies
+   bootstrap-safe defaults:
 
 ```text
 KHANEYAB_RUNTIME=paas
@@ -17,12 +18,10 @@ KHANEYAB_HOST=0.0.0.0
 KHANEYAB_PORT=8766
 KHANEYAB_DATA_DIR=/app/runtime-data
 KHANEYAB_WATCH_ENABLED=false
-CHBK_PYTHON_SAVE=true
-PIP_INDEX_URL=https://mirror2.chabokan.net/pypi/simple/
 ```
 
-Do not set `KHANEYAB_ADMIN_PASSWORD` yet. The first deployment is only used to
-activate Chabokan's permanent-path controls.
+The first deployment is only used to activate Chabokan's permanent-path controls.
+It deliberately starts without an administrator or background scans.
 
 ## 2. Log in and deploy
 
@@ -56,10 +55,16 @@ catalog and must continue to be replaced by deployments.
 Now add or update these environment variables:
 
 ```text
+KHANEYAB_RUNTIME=paas
+KHANEYAB_HOST=0.0.0.0
+KHANEYAB_PORT=8766
+KHANEYAB_DATA_DIR=/app/runtime-data
 KHANEYAB_WATCH_ENABLED=true
 KHANEYAB_ADMIN_USERNAME=root_admin
 KHANEYAB_ADMIN_DISPLAY_NAME=مدیر اصلی
 KHANEYAB_ADMIN_PASSWORD=REPLACE_WITH_A_STRONG_PASSWORD
+CHBK_PYTHON_SAVE=true
+PIP_INDEX_URL=https://mirror2.chabokan.net/pypi/simple/
 ```
 
 The password must be at least 10 characters and include at least one letter and one

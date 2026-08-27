@@ -2,7 +2,7 @@
   ".env.example": "41363d01a44a316a",
   ".gitignore": "f198c9545c8d46d8",
   "AGENTS.md": "a0f393a38d1e47f7",
-  "DEPLOY_CHABOKAN.md": "66c1d489b06bf642",
+  "DEPLOY_CHABOKAN.md": "7eee1b0f121d0898",
   "DEPLOY_PARSPACK.md": "f273e5b42ad10508",
   "INSTANCE.md": "8007195712adfe55",
   "app.py": "49404d27b2b5a3ba",
@@ -45,7 +45,7 @@
   "scripts/build_neighborhood_atlas.py": "e862554c0d6cdb2b",
   "scripts/smoke_production.py": "07ff46298d38d81a",
   "scripts/update_architecture.py": "0e957fcabd05ebb6",
-  "start.sh": "154583ef540e7d08",
+  "start.sh": "52e1d0d3d5069694",
   "start_dashboard.cmd": "778d799b9a5d1bd1",
   "watch.cmd": "8710a28df7c496aa"
 }
