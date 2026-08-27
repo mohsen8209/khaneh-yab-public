@@ -13,14 +13,22 @@ python scripts/update_architecture.py --check
 python scripts/update_architecture.py --write
 ```
 
+## استقرار روی چابکان
+
+روش اصلی استقرار فعلی، CLI چابکان است. پروژه با `start.sh`، پورت `8766`، کش بسته‌های
+Python و SQLite روی مسیر دائمی مستقل آماده شده است. مراحل دقیق ورود با توکن، اولین
+Deploy، ساخت مسیر دائمی و تست سلامت در [DEPLOY_CHABOKAN.md](DEPLOY_CHABOKAN.md) است.
+
+در production فقط یک نمونه سرویس اجرا کنید. SQLite در این مقیاس به سرویس دیتابیس
+جدا نیاز ندارد؛ چند نمونه تنها پس از مهاجرت برنامه‌ریزی‌شده به PostgreSQL مجاز است.
+
 ## استقرار روی پارس‌پک
 
 نسخه عمومی برای Python PaaS با `app.py`، `requirements.txt`، اسکن پس‌زمینه، ادمین
 بوت‌استرپ‌شده از Secret و SQLite روی Volume دائمی آماده شده است. قرارداد کامل پنل،
 متغیرهای محیطی و انتقال امن دیتابیس در [DEPLOY_PARSPACK.md](DEPLOY_PARSPACK.md) است.
 
-در production فقط یک Pod اجرا کنید. SQLite در این مقیاس به سرویس دیتابیس جدا نیاز
-ندارد؛ چند Pod تنها پس از مهاجرت برنامه‌ریزی‌شده به PostgreSQL مجاز است.
+در پارس‌پک فقط یک Pod اجرا کنید.
 
 ## مدل رتبه‌بندی
 

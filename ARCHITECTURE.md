@@ -1,7 +1,7 @@
 # معماری خانه‌یاب عمومی
 
 > این سند خودکار از کد واقعی تولید شده است. منبع ویرایش `scripts/update_architecture.py` است.  
-> اثرانگشت ورودی‌های معماری: `9d45d942dc282502`
+> اثرانگشت ورودی‌های معماری: `b03a9b2d91ec2475`
 
 ## روش استفاده برای توسعه
 
@@ -16,10 +16,10 @@
 flowchart LR
     User[کاربر] --> HTTP[DashboardHandler :8766]
     Admin[مدیر] --> HTTP
-    PaaS[PaaS app.py + one Pod] --> Runtime[Production Runtime]
+    PaaS[PaaS start.sh to app.py + one instance] --> Runtime[Production Runtime]
     Runtime --> HTTP
     Runtime --> Worker[Background Scan Loop]
-    Runtime --> Volume[(Persistent /data Volume)]
+    Runtime --> Volume[(Persistent SQLite Volume)]
     HTTP --> Auth[AuthService]
     HTTP --> App[DashboardApp]
     App --> Profile[Search Profile]
@@ -41,7 +41,7 @@ flowchart LR
 
 - ریشه نوشتن فقط همین پروژه است؛ پروژه شخصی والد و پورت `8765` خارج از محدوده‌اند.
 - اجرای محلی روی `127.0.0.1:8766` و اجرای PaaS روی `0.0.0.0:8766` است.
-- production دقیقاً یک Pod و یک SQLite در `/data` دارد؛ چند Pod نیازمند PostgreSQL است.
+- production دقیقاً یک نمونه و یک SQLite روی Volume دائمی دارد؛ پارس‌پک از `/data` و چابکان از `/app/runtime-data` استفاده می‌کند. چند نمونه نیازمند PostgreSQL است.
 - آگهی‌ها مشترک‌اند؛ پروفایل، feedback، comparison، calibration و model با `user_id` جدا می‌شوند.
 
 ## چرخه کاربر
@@ -223,7 +223,7 @@ erDiagram
 | سلیقه و onboarding | `personalization.py`, `dashboard.py`, `db.py`, `calibration.*` | `test_personalization.py`, `test_calibration.py` | ۱۲ انتخاب، replay، refresh و redirect |
 | داشبورد و sort | `app.js`, `index.html`, `dashboard.py` | `test_dashboard.py` | Playwright در desktop/mobile |
 | اعلان | `notifier.py`, `service.py`, `config.json` | `test_service.py` | فقط آگهی تازه و یک‌بار |
-| PaaS و پایداری | `app.py`, `runtime.py`, `config.py`, `db.py`, `scripts/smoke_production.py` | `test_runtime.py`, `test_backup_database.py`, `test_production_smoke.py` | یک Pod، `/data`، Secret، health و smoke واقعی قرارداد |
+| PaaS و پایداری | `start.sh`, `app.py`, `runtime.py`, `config.py`, `db.py`, `scripts/smoke_production.py` | `test_runtime.py`, `test_backup_database.py`, `test_production_smoke.py` | یک نمونه، Volume دائمی، Secret، health و smoke واقعی قرارداد |
 | معماری | `scripts/update_architecture.py`, `AGENTS.md` | `test_architecture.py` | `--check` باید سبز باشد |
 
 ## اجرای محلی و گیت نهایی
@@ -237,4 +237,5 @@ python -m divar_scout dashboard
 - عمومی: `http://127.0.0.1:8766`
 - مدیریت: `http://127.0.0.1:8766/admin`
 - شخصی، خارج از محدوده تغییر: `http://127.0.0.1:8765`
-- قرارداد production: `DEPLOY_PARSPACK.md`
+- قرارداد production چابکان: `DEPLOY_CHABOKAN.md`
+- قرارداد production پارس‌پک: `DEPLOY_PARSPACK.md`

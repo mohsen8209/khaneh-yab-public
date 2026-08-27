@@ -2,9 +2,11 @@
   ".env.example": "41363d01a44a316a",
   ".gitignore": "f198c9545c8d46d8",
   "AGENTS.md": "a0f393a38d1e47f7",
+  "DEPLOY_CHABOKAN.md": "66c1d489b06bf642",
   "DEPLOY_PARSPACK.md": "f273e5b42ad10508",
   "INSTANCE.md": "8007195712adfe55",
   "app.py": "49404d27b2b5a3ba",
+  "chabok.json": "3e09ccdf0d707629",
   "config.json": "ff192c0a81351291",
   "data/divar_tehran_districts.json": "c56b129c6dab5e76",
   "data/tehran_neighborhoods.json": "046b61a84db8949c",
@@ -42,7 +44,8 @@
   "scripts/backup_database.py": "8644f577319332f1",
   "scripts/build_neighborhood_atlas.py": "e862554c0d6cdb2b",
   "scripts/smoke_production.py": "07ff46298d38d81a",
-  "scripts/update_architecture.py": "ce0142c3a51fd4b6",
+  "scripts/update_architecture.py": "0e957fcabd05ebb6",
+  "start.sh": "154583ef540e7d08",
   "start_dashboard.cmd": "778d799b9a5d1bd1",
   "watch.cmd": "8710a28df7c496aa"
 }
