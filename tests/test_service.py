@@ -120,6 +120,16 @@ class FilteringClient:
         return listing("valid", detailed=True)
 
 
+class BelowGroundClient:
+    def fetch_summaries(self) -> list[Listing]:
+        return [listing("below-ground")]
+
+    def fetch_detail(self, summary: Listing) -> Listing:
+        detail = listing(summary.token, detailed=True)
+        detail.floor = "منفی ۱ از ۵"
+        return detail
+
+
 class TransientAllSpamClient:
     def __init__(self) -> None:
         self.summary_calls = 0
@@ -177,6 +187,23 @@ class ServiceNotificationTests(unittest.TestCase):
             self.assertEqual(
                 [item["token"] for item in database.list_records()], ["valid"]
             )
+
+    def test_below_ground_detail_is_archived_before_scoring_or_display(self) -> None:
+        raw = copy.deepcopy(load_config().raw)
+        raw["scan"]["request_delay_seconds"] = 0
+        config = AppConfig(raw=raw, path=Path("test-config.json"))
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "test.sqlite3")
+            service = ScoutService(
+                config, database=database, client=BelowGroundClient()
+            )
+
+            result = service.run_once()
+
+            self.assertEqual(result.detail_count, 1)
+            self.assertEqual(result.filtered_count, 1)
+            self.assertEqual(result.scored_count, 0)
+            self.assertEqual(database.list_records(), [])
 
     def test_new_listing_gets_detail_priority_but_shared_housing_does_not(self) -> None:
         raw = copy.deepcopy(load_config().raw)

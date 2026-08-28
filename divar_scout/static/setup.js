@@ -481,6 +481,7 @@ function criteriaError() {
   if (maxSize !== null && maxSize < idealSize) return "حداکثر متراژ نباید از متراژ ایده‌آل کمتر باشد";
   if (maxRooms !== null && maxRooms < minRooms) return "حداکثر خواب نباید از حداقل خواب کمتر باشد";
   if (idealAge !== null && hardAge !== null && idealAge > hardAge) return "سن بنای ایده‌آل نباید از حداکثر قابل قبول بیشتر باشد";
+  if ((minFloor !== null && minFloor < 0) || (maxFloor !== null && maxFloor < 0)) return "طبقات زیر همکف در خانه‌یاب نمایش داده نمی‌شوند";
   if (minFloor !== null && maxFloor !== null && minFloor > maxFloor) return "حداقل طبقه نباید از حداکثر طبقه بیشتر باشد";
   if (document.querySelector("#exceptional-budget").checked) {
     const stretchDeposit = numberValue("stretch-deposit");

@@ -42,6 +42,22 @@ AMBIGUOUS_PARKING_PATTERNS = (
     r"پارک\s+در\s+حیاط",
 )
 MIN_PLAUSIBLE_EFFECTIVE_MONTHLY_COST = 5_000_000
+FLOOR_DIGITS = str.maketrans(
+    "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"
+)
+FLOOR_WORD_NUMBERS = {
+    "یک": 1,
+    "دو": 2,
+    "سه": 3,
+    "چهار": 4,
+    "پنج": 5,
+}
+BELOW_GROUND_TITLE_PATTERNS = (
+    r"^(?:اجاره\s*)?(?:(?:واحد|آپارتمان|سوییت|سوئیت)\s*)?"
+    r"(?:طبقه\s*)?(?:زیر\s*هم\s*کف|زیر\s*زمین|منفی\s*(?:\d+|یک|دو|سه|چهار|پنج))",
+    r"(?:واحد|آپارتمان|طبقه)\s*(?:در\s*)?"
+    r"(?:زیر\s*هم\s*کف|زیر\s*زمین|منفی\s*(?:\d+|یک|دو|سه|چهار|پنج))",
+)
 
 
 def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
@@ -49,12 +65,25 @@ def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
 
 
 def _floor_number(value: str | None) -> int | None:
-    normalized = normalize_text(value or "").translate(
-        str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
+    raw = str(value or "").translate(FLOOR_DIGITS)
+    raw = raw.replace("−", "-").replace("–", "-").replace("—", "-")
+    normalized = normalize_text(raw)
+    if re.search(r"(?:زیر\s*هم\s*کف|زیر\s*زمین)", normalized):
+        return -1
+    if re.search(r"\b(?:basement|below\s*ground)\b", raw, flags=re.IGNORECASE):
+        return -1
+    negative_symbol = re.search(r"(?<!\d)-\s*(\d+)", raw)
+    if negative_symbol:
+        return -int(negative_symbol.group(1))
+    negative_word = re.search(
+        r"(?:^|\s)منفی\s*(\d+|یک|دو|سه|چهار|پنج)(?:\s|$)", normalized
     )
-    if normalized in {"همکف", "هم کف"}:
+    if negative_word:
+        amount = negative_word.group(1)
+        return -int(amount) if amount.isdigit() else -FLOOR_WORD_NUMBERS[amount]
+    if re.search(r"هم\s*کف", normalized):
         return 0
-    match = re.search(r"-?\d+", normalized)
+    match = re.search(r"\d+", normalized)
     return int(match.group()) if match else None
 
 
@@ -73,6 +102,11 @@ def listing_exclusion_reason(listing: Listing | Mapping[str, Any]) -> str | None
         return "آگهی هم‌خانه، خوابگاه، پانسیون یا اجاره اتاق است"
     if _matches_any(text, MOTOR_PARKING_PATTERNS):
         return "پارکینگ آگهی فقط برای موتور است"
+    floor = _floor_number(value("floor"))
+    if floor is not None and floor < 0:
+        return "واحد در طبقه زیر همکف قرار دارد"
+    if _matches_any(title, BELOW_GROUND_TITLE_PATTERNS):
+        return "واحد در طبقه زیر همکف قرار دارد"
     deposit = value("deposit")
     rent = value("rent")
     if deposit is not None and rent is not None:

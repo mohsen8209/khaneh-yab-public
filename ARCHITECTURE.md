@@ -1,7 +1,7 @@
 # معماری خانه‌یاب عمومی
 
 > این سند خودکار از کد واقعی تولید شده است. منبع ویرایش `scripts/update_architecture.py` است.  
-> اثرانگشت ورودی‌های معماری: `d7441e6cc639323b`
+> اثرانگشت ورودی‌های معماری: `88ff7c951fcbf2e6`
 
 ## روش استفاده برای توسعه
 
@@ -93,7 +93,7 @@ flowchart TD
     Map --> Archive[آرشیو missing فقط در اسکن کامل و معتبر]
 ```
 
-- spam پیش از «همه»، آمار، مقایسه و اعلان حذف می‌شود.
+- spam و طبقات زیرهمکف پیش از «همه»، آمار، مقایسه و اعلان حذف می‌شوند؛ درخواست‌های دیوار نیز حداقل طبقه صفر دارند.
 - درخواست‌های هم‌زمان رد نمی‌شوند؛ پروفایل همسان به اسکن جاری ملحق و هر پروفایل متفاوت به‌صورت یک job مستقل با سهم کامل جزئیات اجرا می‌شود.
 - Map API دیوار بیش از ۱۵ محله یا دو شناسه ناسازگار شناخته‌شده را بی‌صدا نادیده می‌گیرد؛ محله‌های انتخابی در قطعه‌های امن کرال و سپس با token ادغام می‌شوند.
 - پاسخ خالی، تماماً spam، ناقص یا دارای خطای یکی از قطعه‌های محله یک‌بار کامل retry می‌شود؛ تکرار آن موفقیت محسوب نمی‌شود و موجودی قبلی را تغییر نمی‌دهد.
@@ -139,7 +139,7 @@ sequenceDiagram
 | `notifier.py` | ارسال اعلان اختیاری ntfy | `NtfyNotifier, format_money` |
 | `personalization.py` | مدل pairwise محلی و انتخاب مقایسه آموزنده | `PersonalizationEngine` |
 | `runtime.py` | ورودی production، Volume، ادمین bootstrap و اسکن پس‌زمینه PaaS | `environment_flag, validate_paas_runtime, bootstrap_admin, scan_forever, run_paas` |
-| `scoring.py` | الک قطعی، شروط سخت و امتیاز پایه از ۲۰ | `listing_exclusion_reason, profile_scope_exclusion_reason, score_listing` |
+| `scoring.py` | الک قطعی spam و زیرهمکف، شروط سخت و امتیاز پایه از ۲۰ | `listing_exclusion_reason, profile_scope_exclusion_reason, score_listing` |
 | `search_profile.py` | اعتبارسنجی پاسخ‌ها و ساخت جست‌وجوی دیوار برای پروفایل | `SearchProfileError, districts, district_catalog, empty_profile, normalize_profile, validate_profile` |
 | `service.py` | هماهنگ‌کننده اسکن، retry پاسخ ناقص، جزئیات، آرشیو، امتیاز و اعلان | `ScanResult, ScoutService, merge_summary` |
 

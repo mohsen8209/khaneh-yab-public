@@ -177,6 +177,41 @@ class ScoringTests(unittest.TestCase):
                     listing_exclusion_reason(good_listing(title=title))
                 )
 
+    def test_below_ground_floor_variants_are_always_filtered(self) -> None:
+        variants = (
+            "-1",
+            "−۱ از ۵",
+            "منفی ۱",
+            "طبقه منفی یک",
+            "زیرهمکف",
+            "زیر هم‌کف",
+            "زیر زمین",
+            "Basement",
+        )
+        for floor in variants:
+            with self.subTest(floor=floor):
+                self.assertEqual(
+                    listing_exclusion_reason(good_listing(floor=floor)),
+                    "واحد در طبقه زیر همکف قرار دارد",
+                )
+
+        for floor in ("همکف", "۰ از ۵", "1", "۱ از ۶"):
+            with self.subTest(floor=floor):
+                self.assertIsNone(listing_exclusion_reason(good_listing(floor=floor)))
+        self.assertIsNone(
+            listing_exclusion_reason(
+                good_listing(floor="۱", description="پارکینگ و انباری در زیرزمین")
+            )
+        )
+
+    def test_explicit_below_ground_title_is_filtered_before_detail_fetch(self) -> None:
+        self.assertEqual(
+            listing_exclusion_reason(
+                good_listing(title="اجاره آپارتمان زیر همکف ۷۰ متری", floor=None)
+            ),
+            "واحد در طبقه زیر همکف قرار دارد",
+        )
+
     def test_value_fallback_rewards_effective_cost_per_square_meter(self) -> None:
         compact = score_listing(
             good_listing(token="compact", size=60, deposit=300_000_000, rent=30_000_000),

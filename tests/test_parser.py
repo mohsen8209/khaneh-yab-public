@@ -43,6 +43,12 @@ class ParserTests(unittest.TestCase):
         )
         self.assertGreaterEqual(payload["camera_info"]["zoom"], 14)
 
+    def test_default_map_payload_never_requests_below_ground_floors(self) -> None:
+        payload = build_map_payload(load_config())
+        floor = payload["search_data"]["form_data"]["data"]["floor"]["number_range"]
+        self.assertEqual(floor.get("minimum"), "0")
+        self.assertNotIn("maximum", floor)
+
     def test_cluster_only_response_is_not_treated_as_a_valid_empty_scan(self) -> None:
         client = DivarClient(load_config())
         client._request_json = lambda *args, **kwargs: {

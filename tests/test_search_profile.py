@@ -145,6 +145,29 @@ class SearchProfileTests(unittest.TestCase):
         self.assertEqual(query["has-photo"], ["true"])
         self.assertNotIn("warehouse", query)
 
+    def test_below_ground_floors_are_blocked_for_new_and_legacy_profiles(self) -> None:
+        payload = complete_payload()
+        payload["criteria"]["min_floor"] = -2
+        with self.assertRaises(SearchProfileError):
+            validate_profile(payload)
+
+        legacy = validate_profile(complete_payload())
+        legacy["criteria"]["min_floor"] = -3
+        legacy["criteria"]["max_floor"] = -1
+        normalized = normalize_profile(legacy)
+        self.assertEqual(normalized["criteria"]["min_floor"], 0)
+        self.assertEqual(normalized["criteria"]["max_floor"], 0)
+        query = parse_qs(urlparse(crawl_url_for_profile(normalized)).query)
+        self.assertEqual(query["floor"], ["0-0"])
+
+    def test_floor_zero_filter_is_mandatory_when_user_leaves_floor_open(self) -> None:
+        payload = complete_payload()
+        payload["criteria"]["min_floor"] = None
+        payload["criteria"]["max_floor"] = None
+        profile = validate_profile(payload)
+        query = parse_qs(urlparse(crawl_url_for_profile(profile)).query)
+        self.assertEqual(query["floor"], ["0-"])
+
     def test_large_district_selection_is_split_at_divar_safe_limit(self) -> None:
         payload = complete_payload()
         active = [row for row in districts() if "قدیمی" not in row["name"]]

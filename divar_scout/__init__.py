@@ -1,3 +1,3 @@
 """Khaneh-yab: a local, explainable Divar apartment monitor."""
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"

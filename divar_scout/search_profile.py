@@ -9,9 +9,9 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from .config import AppConfig, ROOT
 
 
-DEFAULT_SEARCH_URL = "https://divar.ir/s/tehran/rent-apartment"
+DEFAULT_SEARCH_URL = "https://divar.ir/s/tehran/rent-apartment?floor=0-"
 DISTRICTS_PATH = ROOT / "data" / "divar_tehran_districts.json"
-PROFILE_VERSION = 2
+PROFILE_VERSION = 3
 MAX_DISTRICTS_PER_DIVAR_REQUEST = 15
 # These current catalog entries make Map API silently drop the whole district filter.
 UNUSABLE_DIVAR_DISTRICT_IDS = frozenset({206, 943})
@@ -87,6 +87,10 @@ def normalize_profile(profile: dict[str, Any] | None) -> dict[str, Any]:
     criteria = normalized.setdefault("criteria", {})
     criteria.setdefault("max_building_floors", None)
     criteria.setdefault("max_units_per_floor", None)
+    for name in ("min_floor", "max_floor"):
+        value = criteria.get(name)
+        if isinstance(value, (int, float)) and value < 0:
+            criteria[name] = 0
     criteria.pop("minimum_neighborhood_score", None)
     return normalized
 
@@ -137,8 +141,7 @@ def validate_profile(payload: dict[str, Any]) -> dict[str, Any]:
             criteria[name] = None
             continue
         parsed_value = _integer(value)
-        negative_allowed = name in {"min_floor", "max_floor"}
-        if parsed_value is None or (parsed_value < 0 and not negative_allowed):
+        if parsed_value is None or parsed_value < 0:
             raise SearchProfileError(f"مقدار {name} کامل یا معتبر نیست")
         criteria[name] = parsed_value
 
@@ -311,13 +314,11 @@ def crawl_url_for_profile(profile: dict[str, Any]) -> str:
     )
     if criteria.get("hard_max_age") is not None:
         query["building-age"] = f"-{criteria['hard_max_age']}"
-    if criteria.get("min_floor") is not None or criteria.get("max_floor") is not None:
-        minimum_floor = criteria.get("min_floor")
-        maximum_floor = criteria.get("max_floor")
-        query["floor"] = (
-            f"{minimum_floor if minimum_floor is not None else ''}-"
-            f"{maximum_floor if maximum_floor is not None else ''}"
-        )
+    minimum_floor = max(0, int(criteria.get("min_floor") or 0))
+    maximum_floor = criteria.get("max_floor")
+    query["floor"] = (
+        f"{minimum_floor}-{maximum_floor if maximum_floor is not None else ''}"
+    )
     if criteria.get("max_building_floors") is not None:
         query["floors_count"] = f"-{criteria['max_building_floors']}"
     if criteria.get("max_units_per_floor") is not None:

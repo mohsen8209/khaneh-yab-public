@@ -78,12 +78,22 @@ def normalized_text(value: Any) -> str:
 
 
 def floor_number(value: Any) -> int | None:
-    text = normalized_text(value).translate(
+    raw = normalized_text(value).translate(
         str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
     )
-    if text.strip() in {"همکف", "هم کف"}:
+    raw = raw.replace("−", "-").replace("–", "-").replace("—", "-")
+    if re.search(r"(?:زیر\s*هم\s*کف|زیر\s*زمین|basement|below\s*ground)", raw):
+        return -1
+    negative_symbol = re.search(r"(?<!\d)-\s*(\d+)", raw)
+    if negative_symbol:
+        return -int(negative_symbol.group(1))
+    negative_word = re.search(r"(?:^|\s)منفی\s*(\d+|یک)(?:\s|$)", raw)
+    if negative_word:
+        amount = negative_word.group(1)
+        return -int(amount) if amount.isdigit() else -1
+    if re.search(r"هم\s*کف", raw):
         return 0
-    match = re.search(r"-?\d+", text)
+    match = re.search(r"\d+", raw)
     return int(match.group()) if match else None
 
 
@@ -125,8 +135,10 @@ def validate_listing_contract(listing: dict[str, Any], criteria: dict[str, Any])
 
     minimum_floor = criteria.get("min_floor")
     maximum_floor = criteria.get("max_floor")
+    floor = floor_number(listing.get("floor"))
+    if floor is not None:
+        check(floor >= 0, "below-ground floor")
     if minimum_floor is not None or maximum_floor is not None:
-        floor = floor_number(listing.get("floor"))
         check(floor is not None, "unverifiable floor")
         if minimum_floor is not None:
             check(floor >= int(minimum_floor), "floor below minimum")

@@ -8,7 +8,7 @@
     "personal_data_imported": false
   },
   "search": {
-    "url": "https://divar.ir/s/tehran/rent-apartment",
+    "url": "https://divar.ir/s/tehran/rent-apartment?floor=0-",
     "scope": "shared-tehran-rental-inventory",
     "extra_district_ids": [],
     "include_stretch_budget": false
