@@ -424,6 +424,8 @@ class DashboardTests(unittest.TestCase):
             diagnostics = app.database_diagnostics()
 
             self.assertTrue(diagnostics["database"]["exists"])
+            self.assertFalse(diagnostics["database"]["bootstrap_only"])
+            self.assertFalse(diagnostics["database"]["fresh_database_risk"])
             self.assertEqual(diagnostics["counts"]["users"], 2)
             self.assertEqual(diagnostics["counts"]["profiles"], 2)
             self.assertEqual(diagnostics["counts"]["completed_profiles"], 1)

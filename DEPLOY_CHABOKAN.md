@@ -9,8 +9,7 @@ In the Chabokan service panel:
 
 1. Select Python `3.12`.
 2. Set the service/default port to `8766`.
-3. The first deploy does not require environment variables. `start.sh` supplies
-   bootstrap-safe defaults:
+3. Before the first successful start, add these environment variables:
 
 ```text
 KHANEYAB_RUNTIME=paas
@@ -18,10 +17,13 @@ KHANEYAB_HOST=0.0.0.0
 KHANEYAB_PORT=8766
 KHANEYAB_DATA_DIR=/app/runtime-data
 KHANEYAB_WATCH_ENABLED=false
+KHANEYAB_ALLOW_EMPTY_DATABASE=true
 ```
 
 The first deployment is only used to activate Chabokan's permanent-path controls.
-It deliberately starts without an administrator or background scans.
+It deliberately starts without an administrator or background scans. The
+`KHANEYAB_ALLOW_EMPTY_DATABASE=true` value is temporary and must be turned off
+after the first real database is created on the permanent path.
 
 ## 2. Log in and deploy
 
@@ -60,6 +62,7 @@ KHANEYAB_HOST=0.0.0.0
 KHANEYAB_PORT=8766
 KHANEYAB_DATA_DIR=/app/runtime-data
 KHANEYAB_WATCH_ENABLED=true
+KHANEYAB_ALLOW_EMPTY_DATABASE=true
 KHANEYAB_ADMIN_USERNAME=root_admin
 KHANEYAB_ADMIN_DISPLAY_NAME=مدیر اصلی
 KHANEYAB_ADMIN_PASSWORD=REPLACE_WITH_A_STRONG_PASSWORD
@@ -70,7 +73,13 @@ PIP_INDEX_URL=https://mirror2.chabokan.net/pypi/simple/
 The password must be at least 10 characters and include at least one letter and one
 digit. Restart the service after saving the permanent path and variables. Once the
 administrator has been created successfully, remove `KHANEYAB_ADMIN_PASSWORD` from
-the environment and restart again; the account remains in SQLite.
+the environment, set `KHANEYAB_ALLOW_EMPTY_DATABASE=false`, and restart again; the
+account remains in SQLite.
+
+`KHANEYAB_ALLOW_EMPTY_DATABASE=true` is a first-install escape hatch only. In normal
+production it must be false or removed. If Chabokan ever deploys without preserving
+`/app/runtime-data`, the app will then refuse to create a silent blank SQLite file
+and the logs will point to restoring the database or fixing the permanent path.
 
 ## 4. Verify the release
 
@@ -78,7 +87,7 @@ Open the Chabokan domain and then `/healthz`. A healthy release returns JSON sim
 to:
 
 ```json
-{"ok": true, "release": "0.1.6"}
+{"ok": true, "release": "0.1.7"}
 ```
 
 Useful CLI commands:
@@ -97,7 +106,7 @@ read -s -p "Password: " KHANEYAB_SMOKE_PASSWORD; echo
 export KHANEYAB_SMOKE_PASSWORD
 python scripts/smoke_production.py \
   --base-url "https://YOUR-CHABOKAN-DOMAIN" \
-  --expected-release 0.1.6 \
+  --expected-release 0.1.7 \
   --read-only
 unset KHANEYAB_SMOKE_PASSWORD
 ```

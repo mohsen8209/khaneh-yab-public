@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import os
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from contextlib import closing
 import unittest
 from pathlib import Path
 from urllib.error import URLError
@@ -19,6 +21,7 @@ from divar_scout.db import Database
 from divar_scout.runtime import (
     bootstrap_admin,
     environment_flag,
+    inspect_database_startup,
     scan_forever,
     validate_paas_runtime,
 )
@@ -34,6 +37,7 @@ class RuntimeTests(unittest.TestCase):
                 "KHANEYAB_RUNTIME": "paas",
                 "KHANEYAB_DATA_DIR": directory,
                 "KHANEYAB_PORT": "8766",
+                "KHANEYAB_ALLOW_EMPTY_DATABASE": "true",
             }
             config = load_config(environment=environment)
 
@@ -44,6 +48,53 @@ class RuntimeTests(unittest.TestCase):
                 Path(directory) / "divar_scout.sqlite3",
             )
             self.assertEqual(database_path(environment), Path(directory) / "divar_scout.sqlite3")
+
+    def test_paas_refuses_missing_database_without_explicit_bootstrap(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            environment = {
+                "KHANEYAB_RUNTIME": "paas",
+                "KHANEYAB_DATA_DIR": directory,
+                "KHANEYAB_PORT": "8766",
+            }
+            config = load_config(environment=environment)
+
+            with self.assertRaisesRegex(RuntimeError, "fresh production database"):
+                validate_paas_runtime(config, environment)
+            self.assertFalse((Path(directory) / "divar_scout.sqlite3").exists())
+
+    def test_paas_refuses_empty_schema_without_explicit_bootstrap(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "divar_scout.sqlite3"
+            with closing(sqlite3.connect(path)) as connection:
+                connection.execute(
+                    "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT)"
+                )
+                connection.commit()
+            environment = {
+                "KHANEYAB_RUNTIME": "paas",
+                "KHANEYAB_DATA_DIR": directory,
+                "KHANEYAB_PORT": "8766",
+            }
+            config = load_config(environment=environment)
+
+            self.assertTrue(inspect_database_startup(path).requires_fresh_bootstrap)
+            with self.assertRaisesRegex(RuntimeError, "fresh production database"):
+                validate_paas_runtime(config, environment)
+
+    def test_paas_allows_deliberate_empty_database_bootstrap(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            environment = {
+                "KHANEYAB_RUNTIME": "paas",
+                "KHANEYAB_DATA_DIR": directory,
+                "KHANEYAB_PORT": "8766",
+                "KHANEYAB_ALLOW_EMPTY_DATABASE": "true",
+            }
+            config = load_config(environment=environment)
+
+            self.assertEqual(
+                validate_paas_runtime(config, environment),
+                Path(directory) / "divar_scout.sqlite3",
+            )
 
     def test_paas_refuses_ephemeral_database_configuration(self) -> None:
         environment = {"KHANEYAB_RUNTIME": "paas"}
@@ -133,6 +184,7 @@ class RuntimeTests(unittest.TestCase):
                     "KHANEYAB_PORT": str(port),
                     "KHANEYAB_DATA_DIR": str(root / "data"),
                     "KHANEYAB_WATCH_ENABLED": "false",
+                    "KHANEYAB_ALLOW_EMPTY_DATABASE": "true",
                     "KHANEYAB_ADMIN_USERNAME": "smoke_admin",
                     "KHANEYAB_ADMIN_DISPLAY_NAME": "مدیر تست",
                     "KHANEYAB_ADMIN_PASSWORD": "SmokePassword123",
@@ -163,7 +215,7 @@ class RuntimeTests(unittest.TestCase):
                     process.terminate()
                     output, _ = process.communicate(timeout=5)
                     self.fail(f"PaaS entrypoint did not become healthy:\n{output}")
-                self.assertEqual(payload, {"ok": True, "release": "0.1.6"})
+                self.assertEqual(payload, {"ok": True, "release": "0.1.7"})
                 self.assertTrue((root / "data" / "divar_scout.sqlite3").is_file())
             finally:
                 if process.poll() is None:

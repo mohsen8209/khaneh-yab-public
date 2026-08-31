@@ -1,7 +1,7 @@
 # معماری خانه‌یاب عمومی
 
 > این سند خودکار از کد واقعی تولید شده است. منبع ویرایش `scripts/update_architecture.py` است.  
-> اثرانگشت ورودی‌های معماری: `2c61383f44bdda1c`
+> اثرانگشت ورودی‌های معماری: `ba79760ec115b4c0`
 
 ## روش استفاده برای توسعه
 
@@ -138,7 +138,7 @@ sequenceDiagram
 | `neighborhoods.py` | بانک ثابت ۴۵۳ محله، normalization و lookup امتیاز | `normalize_text, NeighborhoodRating, NeighborhoodAtlas, default_atlas` |
 | `notifier.py` | ارسال اعلان اختیاری ntfy | `NtfyNotifier, format_money` |
 | `personalization.py` | مدل pairwise محلی و انتخاب مقایسه آموزنده | `PersonalizationEngine` |
-| `runtime.py` | ورودی production، Volume، ادمین bootstrap و اسکن پس‌زمینه PaaS | `environment_flag, validate_paas_runtime, bootstrap_admin, scan_forever, run_paas` |
+| `runtime.py` | ورودی production، Volume، ادمین bootstrap و اسکن پس‌زمینه PaaS | `DatabaseStartupState, environment_flag, inspect_database_startup, validate_paas_runtime, bootstrap_admin, scan_forever` |
 | `scoring.py` | الک قطعی spam و زیرهمکف، شروط سخت و امتیاز پایه از ۲۰ | `listing_exclusion_reason, profile_scope_exclusion_reason, score_listing` |
 | `search_profile.py` | اعتبارسنجی پاسخ‌ها و ساخت جست‌وجوی دیوار برای پروفایل | `SearchProfileError, districts, district_catalog, empty_profile, normalize_profile, validate_profile` |
 | `service.py` | هماهنگ‌کننده اسکن، retry پاسخ ناقص، جزئیات، آرشیو، امتیاز و اعلان | `ScanResult, ScoutService, merge_summary` |

@@ -692,6 +692,21 @@ class Database:
                 "path": str(self.path.resolve()),
                 "exists": self.path.exists(),
                 "size_bytes": self.path.stat().st_size if self.path.exists() else 0,
+                "bootstrap_only": (
+                    int(counts["users"] or 0) <= 1
+                    and int(counts["profiles"] or 0) <= 1
+                    and completed_profiles == 0
+                    and int(counts["listings"] or 0) == 0
+                ),
+                "fresh_database_risk": (
+                    int(counts["users"] or 0) == 0
+                    or (
+                        int(counts["users"] or 0) <= 1
+                        and int(counts["profiles"] or 0) <= 1
+                        and completed_profiles == 0
+                        and int(counts["listings"] or 0) == 0
+                    )
+                ),
             },
             "counts": {
                 "users": int(counts["users"] or 0),

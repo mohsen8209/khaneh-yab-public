@@ -95,7 +95,7 @@ python -m divar_scout watch
 export KHANEYAB_SMOKE_USERNAME="your-approved-user"
 read -s -p "Password: " KHANEYAB_SMOKE_PASSWORD; echo
 export KHANEYAB_SMOKE_PASSWORD
-python scripts/smoke_production.py --expected-release 0.1.6
+python scripts/smoke_production.py --expected-release 0.1.7
 unset KHANEYAB_SMOKE_PASSWORD
 ```
 
