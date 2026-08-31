@@ -403,6 +403,37 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(calls, [7, 7])
             self.assertFalse(app.scan_status()["running"])
 
+    def test_database_diagnostics_summarizes_profiles_without_secrets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "test.sqlite3")
+            app = DashboardApp(load_config(), database=database)
+            admin = app.auth.create_admin("admin_dbg", "Admin Debug", "secret12345a")
+            user = app.auth.register("debug_user", "Debug User", "secret12345b")
+            approved = app.auth.set_user_status(admin, user.id, "approved")
+            database.save_user_profile(
+                approved.id,
+                {
+                    "completed": True,
+                    "criteria": {
+                        "district_scope": "selected",
+                        "district_names": ["سعادت آباد", "مرزداران"],
+                    },
+                },
+            )
+
+            diagnostics = app.database_diagnostics()
+
+            self.assertTrue(diagnostics["database"]["exists"])
+            self.assertEqual(diagnostics["counts"]["users"], 2)
+            self.assertEqual(diagnostics["counts"]["profiles"], 2)
+            self.assertEqual(diagnostics["counts"]["completed_profiles"], 1)
+            self.assertEqual(diagnostics["counts"]["incomplete_profiles"], 1)
+            latest_user = diagnostics["latest_users"][0]
+            self.assertEqual(latest_user["username"], "debug_user")
+            self.assertTrue(latest_user["profile_completed"])
+            self.assertNotIn("password_hash", latest_user)
+            self.assertNotIn("profile_json", latest_user)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -170,6 +170,9 @@ class DashboardApp:
     def learning_state(self, user_id: int | None = None) -> dict[str, Any]:
         return self.engine(user_id).state()
 
+    def database_diagnostics(self) -> dict[str, Any]:
+        return self.database.database_diagnostics()
+
     def set_feedback(
         self,
         token: str,
@@ -687,6 +690,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "stats": self.server.app.auth.admin_stats(),
                     }
                 )
+            elif path == "/api/admin/debug/database":
+                self._json(self.server.app.database_diagnostics())
             else:
                 self._json({"error": "مسیر مدیریت پیدا نشد"}, status=HTTPStatus.NOT_FOUND)
             return

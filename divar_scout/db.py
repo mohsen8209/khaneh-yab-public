@@ -586,6 +586,128 @@ class Database:
             profiles.append(profile)
         return profiles
 
+    def database_diagnostics(self, *, limit: int = 12) -> dict[str, Any]:
+        limit = max(1, min(int(limit), 50))
+        with self.connect() as connection:
+            counts = connection.execute(
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM users) AS users,
+                    (SELECT COUNT(*) FROM user_profiles) AS profiles,
+                    (SELECT COUNT(*) FROM sessions WHERE expires_at > ?) AS active_sessions,
+                    (SELECT COUNT(*) FROM listings) AS listings,
+                    (SELECT COUNT(*) FROM listings WHERE is_active = 1) AS active_listings,
+                    (SELECT COUNT(*) FROM scans) AS scans
+                """,
+                (utc_now(),),
+            ).fetchone()
+            user_rows = connection.execute(
+                """
+                SELECT users.id, users.username, users.display_name, users.role,
+                       users.status, users.created_at, users.updated_at,
+                       users.approved_at, users.last_login_at,
+                       user_profiles.search_url, user_profiles.profile_json,
+                       user_profiles.updated_at AS profile_updated_at,
+                       user_calibrations.target_count,
+                       user_calibrations.completed_count,
+                       user_calibrations.completed_at
+                FROM users
+                LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+                LEFT JOIN user_calibrations ON user_calibrations.user_id = users.id
+                ORDER BY users.id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            profile_rows = connection.execute(
+                "SELECT profile_json FROM user_profiles"
+            ).fetchall()
+            latest_scans = connection.execute(
+                """
+                SELECT id, started_at, finished_at, summary_count, detail_count,
+                       expired_count, filtered_count, error
+                FROM scans
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (min(limit, 10),),
+            ).fetchall()
+
+        completed_profiles = 0
+        incomplete_profiles = 0
+        malformed_profiles = 0
+        for row in profile_rows:
+            try:
+                profile = json.loads(row["profile_json"] or "{}")
+            except json.JSONDecodeError:
+                malformed_profiles += 1
+                profile = {}
+            if profile.get("completed"):
+                completed_profiles += 1
+            else:
+                incomplete_profiles += 1
+
+        users: list[dict[str, Any]] = []
+        for row in user_rows:
+            profile: dict[str, Any] = {}
+            has_profile = row["profile_json"] is not None
+            if has_profile:
+                try:
+                    profile = json.loads(row["profile_json"] or "{}")
+                except json.JSONDecodeError:
+                    profile = {}
+            criteria = profile.get("criteria") if isinstance(profile, dict) else {}
+            district_names = []
+            if isinstance(criteria, dict):
+                district_names = list(criteria.get("district_names") or [])[:8]
+            users.append(
+                {
+                    "id": int(row["id"]),
+                    "username": row["username"],
+                    "display_name": row["display_name"],
+                    "role": row["role"],
+                    "status": row["status"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "approved_at": row["approved_at"],
+                    "last_login_at": row["last_login_at"],
+                    "has_profile": has_profile,
+                    "profile_completed": bool(profile.get("completed")),
+                    "profile_updated_at": row["profile_updated_at"],
+                    "district_scope": (
+                        criteria.get("district_scope")
+                        if isinstance(criteria, dict) else None
+                    ),
+                    "district_sample": district_names,
+                    "calibration": {
+                        "target": row["target_count"],
+                        "completed": row["completed_count"],
+                        "completed_at": row["completed_at"],
+                    },
+                }
+            )
+
+        return {
+            "database": {
+                "path": str(self.path.resolve()),
+                "exists": self.path.exists(),
+                "size_bytes": self.path.stat().st_size if self.path.exists() else 0,
+            },
+            "counts": {
+                "users": int(counts["users"] or 0),
+                "profiles": int(counts["profiles"] or 0),
+                "completed_profiles": completed_profiles,
+                "incomplete_profiles": incomplete_profiles,
+                "malformed_profiles": malformed_profiles,
+                "active_sessions": int(counts["active_sessions"] or 0),
+                "listings": int(counts["listings"] or 0),
+                "active_listings": int(counts["active_listings"] or 0),
+                "scans": int(counts["scans"] or 0),
+            },
+            "latest_users": users,
+            "latest_scans": [dict(row) for row in latest_scans],
+        }
+
     def upsert_listing(
         self,
         listing: Listing,

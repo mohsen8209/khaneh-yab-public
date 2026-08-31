@@ -318,12 +318,42 @@ class AuthHttpTests(unittest.TestCase):
         self.assertEqual(headers.get_content_type(), "application/json")
         self.assertIn("خطای داخلی سرور", payload["error"])
 
+    def test_admin_database_diagnostics_endpoint_is_admin_only(self) -> None:
+        user = self.auth.register("diag_user", "Diag User", "SecurePass123")
+        self.auth.set_user_status(self.admin, user.id, "approved")
+        user_browser = self.opener()
+        status, _, _ = self.request(
+            user_browser,
+            "/api/auth/login",
+            payload={"username": "diag_user", "password": "SecurePass123"},
+        )
+        self.assertEqual(status, 200)
+        status, forbidden, _ = self.request(user_browser, "/api/admin/debug/database")
+        self.assertEqual(status, 403)
+        self.assertIn("error", forbidden)
+
+        admin_browser = self.opener()
+        status, _, _ = self.request(
+            admin_browser,
+            "/api/auth/login",
+            payload={"username": "root_admin", "password": "AdminSecure123"},
+        )
+        self.assertEqual(status, 200)
+        status, diagnostics, _ = self.request(admin_browser, "/api/admin/debug/database")
+
+        self.assertEqual(status, 200)
+        self.assertTrue(diagnostics["database"]["exists"])
+        self.assertEqual(diagnostics["counts"]["users"], 2)
+        self.assertEqual(diagnostics["counts"]["profiles"], 2)
+        self.assertNotIn("password_hash", json.dumps(diagnostics))
+        self.assertNotIn("csrf", json.dumps(diagnostics))
+
     def test_health_check_exposes_the_running_release(self) -> None:
         status, payload, headers = self.request(self.opener(), "/healthz")
 
         self.assertEqual(status, 200)
-        self.assertEqual(payload, {"ok": True, "release": "0.1.5"})
-        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.5")
+        self.assertEqual(payload, {"ok": True, "release": "0.1.6"})
+        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.6")
 
 
 if __name__ == "__main__":
