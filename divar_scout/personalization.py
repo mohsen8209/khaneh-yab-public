@@ -10,7 +10,7 @@ from .config import AppConfig
 from .db import Database, utc_now
 from .models import Listing, ScoreResult
 from .neighborhoods import NeighborhoodAtlas, default_atlas, normalize_text
-MODEL_VERSION = 4
+MODEL_VERSION = 5
 BASE_FEATURES = (
     "larger_space",
     "two_bedrooms",
@@ -371,20 +371,24 @@ class PersonalizationEngine:
             labels.extend((1, 0))
             weights.extend((0.35, 0.35))
 
-        from sklearn.linear_model import LogisticRegression
-        from sklearn.preprocessing import StandardScaler
-
-        scaler = StandardScaler(with_mean=False)
-        scaled = scaler.fit_transform(rows)
-        classifier = LogisticRegression(
-            C=float(self.config.personalization["regularization_c"]),
-            fit_intercept=False,
-            solver="lbfgs",
-            max_iter=1000,
+        scales = [
+            max(0.1, statistics.pstdev(item.get(name, 0) for item in item_features))
+            for name in feature_names
+        ]
+        totals = [0.0 for _name in feature_names]
+        total_weight = 0.0
+        for row, label, weight in zip(rows, labels, weights):
+            direction = 1 if label else -1
+            for index, value in enumerate(row):
+                totals[index] += direction * weight * value / scales[index]
+            total_weight += weight
+        regularization = max(
+            0.05, float(self.config.personalization.get("regularization_c", 0.3))
         )
-        classifier.fit(scaled, labels, sample_weight=weights)
-        coefficients = [float(value) for value in classifier.coef_[0]]
-        scales = [float(value) if value else 1.0 for value in scaler.scale_]
+        coefficients = [
+            _clamp(value / max(total_weight, 1.0) * regularization * 4, -2.5, 2.5)
+            for value in totals
+        ]
         baselines = [
             float(statistics.median(item.get(name, 0) for item in item_features))
             for name in feature_names

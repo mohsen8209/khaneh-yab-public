@@ -63,8 +63,8 @@ python -m divar_scout admin-create --username root --display-name "مدیر اص
 
 ## اجرا
 
-پروژه به Python 3.11 یا جدیدتر نیاز دارد. مدل یادگیری شخصی از
-`scikit-learn` استفاده می‌کند و با دستور زیر نصب می‌شود:
+پروژه به Python 3.11 یا جدیدتر نیاز دارد. مدل یادگیری شخصی با پیاده‌سازی سبک
+داخلی اجرا می‌شود و وابستگی سنگین جداگانه ندارد:
 
 ```powershell
 python -m pip install -e .
@@ -95,7 +95,7 @@ python -m divar_scout watch
 export KHANEYAB_SMOKE_USERNAME="your-approved-user"
 read -s -p "Password: " KHANEYAB_SMOKE_PASSWORD; echo
 export KHANEYAB_SMOKE_PASSWORD
-python scripts/smoke_production.py --expected-release 0.1.8
+python scripts/smoke_production.py --expected-release 0.1.9
 unset KHANEYAB_SMOKE_PASSWORD
 ```
 
