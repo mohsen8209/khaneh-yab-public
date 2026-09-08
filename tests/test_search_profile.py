@@ -179,12 +179,18 @@ class SearchProfileTests(unittest.TestCase):
             parse_qs(urlparse(url).query)["districts"][0].split(",")
             for url in urls
         ]
+        bboxes = [
+            parse_qs(urlparse(url).query).get("bbox", [""])[0]
+            for url in urls
+        ]
 
-        self.assertEqual([len(chunk) for chunk in chunks], [15, 15, 2])
+        self.assertEqual([len(chunk) for chunk in chunks], [4] * 8)
         self.assertEqual(
-            [int(item) for chunk in chunks for item in chunk],
-            profile["criteria"]["district_ids"],
+            sorted(int(item) for chunk in chunks for item in chunk),
+            sorted(profile["criteria"]["district_ids"]),
         )
+        self.assertTrue(all(bbox for bbox in bboxes))
+        self.assertTrue(all(len(bbox.split(",")) == 4 for bbox in bboxes))
 
     def test_deprecated_district_ids_cannot_disable_divar_filtering(self) -> None:
         profile = validate_profile(complete_payload())

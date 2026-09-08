@@ -44,6 +44,7 @@ SESSION_COOKIE = "khane_yab_public_session"
 MAX_BODY_BYTES = 64 * 1024
 CALIBRATION_TARGET = 12
 CALIBRATION_RECORD_LIMIT = 140
+CALIBRATION_POOL_SCAN_LIMIT = 2000
 MAX_CALIBRATION_SCAN_BATCHES = 3
 
 
@@ -245,7 +246,7 @@ class DashboardApp:
 
         records = self._personalized_records(
             user_id,
-            limit=CALIBRATION_RECORD_LIMIT,
+            limit=CALIBRATION_POOL_SCAN_LIMIT,
             include_market_context=False,
         )
         eligible_records = [

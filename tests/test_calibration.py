@@ -8,7 +8,7 @@ from divar_scout.auth import AuthService
 from divar_scout.config import load_config
 from divar_scout.dashboard import DashboardApp
 from divar_scout.db import Database
-from divar_scout.models import Listing
+from divar_scout.models import Listing, ScoreResult
 
 
 def profile_payload() -> dict:
@@ -178,6 +178,73 @@ class CalibrationTests(unittest.TestCase):
         self.assertTrue(pair["ready"])
         self.assertIsNotNone(pair["left"])
         self.assertIsNotNone(pair["right"])
+
+    def test_calibration_pool_is_not_starved_by_global_top_records(self) -> None:
+        payload = profile_payload()
+        payload["criteria"]["district_scope"] = "selected"
+        payload["criteria"]["district_ids"] = [75]
+        self.app.save_profile(self.user.id, payload)
+
+        for index in range(160):
+            listing = Listing(
+                token=f"outside-{index}",
+                title=f"Outside high score {index}",
+                url=f"https://divar.ir/v/outside-{index}",
+                district="تهرانپارس غربی",
+                deposit=200_000_000,
+                rent=20_000_000,
+                size=80,
+                rooms=2,
+                age=4,
+                floor="۲ از ۵",
+                has_parking=True,
+                has_elevator=True,
+                image_count=4,
+                images=[f"https://s100.divarcdn.com/outside-{index}-{photo}.jpg" for photo in range(4)],
+            )
+            self.database.upsert_listing(listing, detail_fetched=True)
+            self.database.save_score(
+                listing.token,
+                ScoreResult(
+                    total=19, location=6, value=5, property=4,
+                    trust_points=3, freshness=1, trust=100,
+                    location_confidence=100, status="candidate"
+                ),
+            )
+
+        for index in range(7):
+            listing = Listing(
+                token=f"selected-{index}",
+                title=f"Selected lower score {index}",
+                url=f"https://divar.ir/v/selected-{index}",
+                district="سعادت‌آباد",
+                deposit=220_000_000,
+                rent=25_000_000,
+                size=70 + index,
+                rooms=2,
+                age=5,
+                floor="۲ از ۵",
+                has_parking=True,
+                has_elevator=True,
+                image_count=4,
+                images=[f"https://s100.divarcdn.com/selected-{index}-{photo}.jpg" for photo in range(4)],
+            )
+            self.database.upsert_listing(listing, detail_fetched=True)
+            self.database.save_score(
+                listing.token,
+                ScoreResult(
+                    total=12, location=5, value=3, property=2,
+                    trust_points=1, freshness=1, trust=100,
+                    location_confidence=100, status="candidate"
+                ),
+            )
+
+        pair = self.app.calibration(self.user.id)
+
+        self.assertTrue(pair["ready"])
+        self.assertGreaterEqual(pair["available_pairs"], 12)
+        self.assertTrue(pair["left"]["token"].startswith("selected-"))
+        self.assertTrue(pair["right"]["token"].startswith("selected-"))
 
     def test_existing_completed_profiles_are_not_suddenly_gated(self) -> None:
         from divar_scout.search_profile import validate_profile

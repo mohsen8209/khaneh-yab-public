@@ -249,6 +249,11 @@ class ScoringTests(unittest.TestCase):
                 good_listing(building_floors=6, units_per_floor=4), config
             )
         )
+        self.assertIsNone(
+            profile_scope_exclusion_reason(
+                good_listing(building_floors=None, units_per_floor=None), config
+            )
+        )
 
     def test_profile_scope_rejects_unverifiable_budget(self) -> None:
         self.assertIsNotNone(
@@ -272,8 +277,6 @@ class ScoringTests(unittest.TestCase):
             {"size": None},
             {"rooms": None},
             {"age": None},
-            {"building_floors": None},
-            {"units_per_floor": None},
         ):
             with self.subTest(changes=changes):
                 self.assertIsNotNone(

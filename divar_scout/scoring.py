@@ -192,12 +192,6 @@ def profile_scope_exclusion_reason(
     building_floors = value("building_floors")
     maximum_building_floors = profile.get("max_building_floors")
     if (
-        strict_contract
-        and maximum_building_floors is not None
-        and building_floors is None
-    ):
-        return "تعداد طبقات ساختمان مشخص نیست و معیار کاربر قابل تأیید نیست"
-    if (
         building_floors is not None
         and maximum_building_floors is not None
         and building_floors > int(maximum_building_floors)
@@ -205,12 +199,6 @@ def profile_scope_exclusion_reason(
         return "تعداد طبقات ساختمان بیشتر از حداکثر موردنظر است"
     units_per_floor = value("units_per_floor")
     maximum_units_per_floor = profile.get("max_units_per_floor")
-    if (
-        strict_contract
-        and maximum_units_per_floor is not None
-        and units_per_floor is None
-    ):
-        return "تعداد واحد در طبقه مشخص نیست و معیار کاربر قابل تأیید نیست"
     if (
         units_per_floor is not None
         and maximum_units_per_floor is not None

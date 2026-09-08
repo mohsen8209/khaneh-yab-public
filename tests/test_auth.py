@@ -352,8 +352,8 @@ class AuthHttpTests(unittest.TestCase):
         status, payload, headers = self.request(self.opener(), "/healthz")
 
         self.assertEqual(status, 200)
-        self.assertEqual(payload, {"ok": True, "release": "0.1.7"})
-        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.7")
+        self.assertEqual(payload, {"ok": True, "release": "0.1.8"})
+        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.8")
 
 
 if __name__ == "__main__":

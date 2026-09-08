@@ -13,6 +13,8 @@ DEFAULT_SEARCH_URL = "https://divar.ir/s/tehran/rent-apartment?floor=0-"
 DISTRICTS_PATH = ROOT / "data" / "divar_tehran_districts.json"
 PROFILE_VERSION = 3
 MAX_DISTRICTS_PER_DIVAR_REQUEST = 15
+MAX_DISTRICTS_PER_FOCUSED_DIVAR_REQUEST = 4
+DISTRICT_BBOX_PADDING = 0.025
 # These current catalog entries make Map API silently drop the whole district filter.
 UNUSABLE_DIVAR_DISTRICT_IDS = frozenset({206, 943})
 REQUIREMENT_VALUES = {"required", "preferred", "irrelevant"}
@@ -355,18 +357,48 @@ def crawl_urls_for_profile(profile: dict[str, Any]) -> list[str]:
         and not district_ids
     ):
         return []
-    if len(district_ids) <= MAX_DISTRICTS_PER_DIVAR_REQUEST:
-        if district_ids == normalized.get("criteria", {}).get("district_ids", []):
-            return [url]
+    if normalized.get("criteria", {}).get("district_scope") != "selected":
+        return [url]
 
     parsed = urlparse(url)
     query = parse_qs(parsed.query)
     urls: list[str] = []
-    for offset in range(0, len(district_ids), MAX_DISTRICTS_PER_DIVAR_REQUEST):
-        chunk = district_ids[offset:offset + MAX_DISTRICTS_PER_DIVAR_REQUEST]
+    for chunk in _focused_district_chunks(district_ids):
         chunk_query = {key: list(values) for key, values in query.items()}
         chunk_query["districts"] = [",".join(str(item) for item in chunk)]
+        chunk_query["bbox"] = [_bbox_for_districts(chunk)]
         urls.append(
             urlunparse(parsed._replace(query=urlencode(chunk_query, doseq=True)))
         )
     return urls
+
+
+def _focused_district_chunks(district_ids: list[int]) -> list[list[int]]:
+    catalog = district_catalog()
+    ordered = sorted(
+        district_ids,
+        key=lambda item: (
+            round(float(catalog[item]["longitude"]) / DISTRICT_BBOX_PADDING),
+            round(float(catalog[item]["latitude"]) / DISTRICT_BBOX_PADDING),
+            item,
+        ),
+    )
+    return [
+        ordered[offset:offset + MAX_DISTRICTS_PER_FOCUSED_DIVAR_REQUEST]
+        for offset in range(0, len(ordered), MAX_DISTRICTS_PER_FOCUSED_DIVAR_REQUEST)
+    ]
+
+
+def _bbox_for_districts(district_ids: list[int]) -> str:
+    catalog = district_catalog()
+    latitudes = [float(catalog[item]["latitude"]) for item in district_ids]
+    longitudes = [float(catalog[item]["longitude"]) for item in district_ids]
+    return ",".join(
+        str(round(value, 7))
+        for value in (
+            min(longitudes) - DISTRICT_BBOX_PADDING,
+            min(latitudes) - DISTRICT_BBOX_PADDING,
+            max(longitudes) + DISTRICT_BBOX_PADDING,
+            max(latitudes) + DISTRICT_BBOX_PADDING,
+        )
+    )

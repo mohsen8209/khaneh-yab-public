@@ -149,8 +149,7 @@ def validate_listing_contract(listing: dict[str, Any], criteria: dict[str, Any])
         ("max_building_floors", "building_floors", "building floors"),
         ("max_units_per_floor", "units_per_floor", "units per floor"),
     ):
-        if criteria.get(criterion) is not None:
-            check(listing.get(field) is not None, f"unverifiable {label}")
+        if criteria.get(criterion) is not None and listing.get(field) is not None:
             check(
                 int(listing[field]) <= int(criteria[criterion]),
                 f"{label} above maximum",

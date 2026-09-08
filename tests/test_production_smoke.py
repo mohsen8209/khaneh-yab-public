@@ -64,7 +64,7 @@ class ProductionSmokeContractTests(unittest.TestCase):
             {"age": None},
             {"age": 26},
             {"floor": "منفی ۱ از ۵"},
-            {"building_floors": None},
+            {"building_floors": 11},
             {"units_per_floor": 5},
             {"has_parking": False},
             {"has_elevator": None},
