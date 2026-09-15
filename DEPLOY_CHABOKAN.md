@@ -87,7 +87,7 @@ Open the Chabokan domain and then `/healthz`. A healthy release returns JSON sim
 to:
 
 ```json
-{"ok": true, "release": "0.1.13"}
+{"ok": true, "release": "0.1.14"}
 ```
 
 Useful CLI commands:
@@ -106,7 +106,7 @@ read -s -p "Password: " KHANEYAB_SMOKE_PASSWORD; echo
 export KHANEYAB_SMOKE_PASSWORD
 python scripts/smoke_production.py \
   --base-url "https://YOUR-CHABOKAN-DOMAIN" \
-  --expected-release 0.1.13 \
+  --expected-release 0.1.14 \
   --read-only
 unset KHANEYAB_SMOKE_PASSWORD
 ```

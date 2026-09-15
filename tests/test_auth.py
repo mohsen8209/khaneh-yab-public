@@ -4,13 +4,15 @@ import http.cookiejar
 import json
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
-from divar_scout.auth import AuthError, AuthService, verify_password
+from divar_scout.auth import AuthError, AuthService, hash_password, verify_password
 from divar_scout.config import load_config
 from divar_scout.dashboard import DashboardApp, DashboardServer
 from divar_scout.db import Database
@@ -38,6 +40,32 @@ class AuthTests(unittest.TestCase):
         self.assertFalse(verify_password("WrongPass123", encoded))
         with self.assertRaises(AuthError):
             self.auth.register("USER_ONE", "کاربر تکراری", "AnotherPass123")
+
+    def test_memory_hard_password_work_is_bounded_under_concurrency(self) -> None:
+        active = 0
+        peak = 0
+        lock = threading.Lock()
+
+        def fake_scrypt(*_args, **kwargs):
+            nonlocal active, peak
+            with lock:
+                active += 1
+                peak = max(peak, active)
+            time.sleep(0.03)
+            with lock:
+                active -= 1
+            return b"x" * int(kwargs["dklen"])
+
+        with patch("divar_scout.auth.hashlib.scrypt", side_effect=fake_scrypt):
+            with ThreadPoolExecutor(max_workers=12) as executor:
+                list(
+                    executor.map(
+                        lambda index: hash_password(f"Password{index:02d}"),
+                        range(24),
+                    )
+                )
+
+        self.assertEqual(peak, 2)
 
     def test_admin_approval_and_suspension_revoke_access(self) -> None:
         user = self.auth.register("waiting_user", "کاربر منتظر", "SecurePass123")
@@ -430,8 +458,8 @@ class AuthHttpTests(unittest.TestCase):
         status, payload, headers = self.request(self.opener(), "/healthz")
 
         self.assertEqual(status, 200)
-        self.assertEqual(payload, {"ok": True, "release": "0.1.13"})
-        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.13")
+        self.assertEqual(payload, {"ok": True, "release": "0.1.14"})
+        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.14")
 
 
 if __name__ == "__main__":

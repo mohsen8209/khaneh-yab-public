@@ -20,7 +20,7 @@ MANIFEST_PATH = ROOT / ".architecture-manifest.json"
 MODULE_DESCRIPTIONS = {
     "__init__.py": "مرز پکیج عمومی",
     "__main__.py": "ورودی اجرای `python -m divar_scout`",
-    "auth.py": "حساب، رمز scrypt، نشست، CSRF، تأیید مدیر و ممیزی",
+    "auth.py": "حساب، scrypt با هم‌زمانی حافظه‌محدود، نشست، CSRF، تأیید و ممیزی",
     "cli.py": "فرمان‌های dashboard، scan، watch، admin-create و اعلان",
     "config.py": "بارگذاری و اعتبارسنجی تنظیمات مستقل عمومی",
     "dashboard.py": "Application service، HTTP routes، گیت دسترسی، API و سقف‌های حافظه",

@@ -5,6 +5,7 @@ import hmac
 import json
 import re
 import secrets
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -22,6 +23,8 @@ PASSWORD_R = 8
 PASSWORD_P = 1
 PASSWORD_LENGTH = 32
 PASSWORD_MAX_MEMORY = 64 * 1024 * 1024
+PASSWORD_WORKERS = 2
+_PASSWORD_WORK_SLOTS = threading.BoundedSemaphore(PASSWORD_WORKERS)
 
 
 class AuthError(ValueError):
@@ -109,15 +112,16 @@ def validate_password(value: str) -> str:
 def hash_password(password: str) -> str:
     validate_password(password)
     salt = secrets.token_bytes(16)
-    derived = hashlib.scrypt(
-        password.encode("utf-8"),
-        salt=salt,
-        n=PASSWORD_N,
-        r=PASSWORD_R,
-        p=PASSWORD_P,
-        dklen=PASSWORD_LENGTH,
-        maxmem=PASSWORD_MAX_MEMORY,
-    )
+    with _PASSWORD_WORK_SLOTS:
+        derived = hashlib.scrypt(
+            password.encode("utf-8"),
+            salt=salt,
+            n=PASSWORD_N,
+            r=PASSWORD_R,
+            p=PASSWORD_P,
+            dklen=PASSWORD_LENGTH,
+            maxmem=PASSWORD_MAX_MEMORY,
+        )
     return "$".join(
         (
             PASSWORD_ALGORITHM,
@@ -135,15 +139,16 @@ def verify_password(password: str, encoded: str) -> bool:
         algorithm, n, r, p, salt, expected = encoded.split("$", 5)
         if algorithm != PASSWORD_ALGORITHM:
             return False
-        derived = hashlib.scrypt(
-            password.encode("utf-8"),
-            salt=bytes.fromhex(salt),
-            n=int(n),
-            r=int(r),
-            p=int(p),
-            dklen=len(bytes.fromhex(expected)),
-            maxmem=PASSWORD_MAX_MEMORY,
-        )
+        with _PASSWORD_WORK_SLOTS:
+            derived = hashlib.scrypt(
+                password.encode("utf-8"),
+                salt=bytes.fromhex(salt),
+                n=int(n),
+                r=int(r),
+                p=int(p),
+                dklen=len(bytes.fromhex(expected)),
+                maxmem=PASSWORD_MAX_MEMORY,
+            )
         return hmac.compare_digest(derived, bytes.fromhex(expected))
     except (ValueError, TypeError):
         return False

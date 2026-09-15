@@ -1,6 +1,6 @@
 [project]
 name = "khaneh-yab-public"
-version = "0.1.13"
+version = "0.1.14"
 description = "Independent foundation for a public Divar house finder"
 requires-python = ">=3.11"
 dependencies = []

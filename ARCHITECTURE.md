@@ -1,7 +1,7 @@
 # معماری خانه‌یاب عمومی
 
 > این سند خودکار از کد واقعی تولید شده است. منبع ویرایش `scripts/update_architecture.py` است.  
-> اثرانگشت ورودی‌های معماری: `896c9b92d638e736`
+> اثرانگشت ورودی‌های معماری: `ee02a88df73df126`
 
 ## روش استفاده برای توسعه
 
@@ -128,7 +128,7 @@ sequenceDiagram
 |---|---|---|
 | `__init__.py` | مرز پکیج عمومی | `-` |
 | `__main__.py` | ورودی اجرای `python -m divar_scout` | `-` |
-| `auth.py` | حساب، رمز scrypt، نشست، CSRF، تأیید مدیر و ممیزی | `AuthError, RateLimitError, AuthUser, AuthSession, normalize_username, validate_username` |
+| `auth.py` | حساب، scrypt با هم‌زمانی حافظه‌محدود، نشست، CSRF، تأیید و ممیزی | `AuthError, RateLimitError, AuthUser, AuthSession, normalize_username, validate_username` |
 | `cli.py` | فرمان‌های dashboard، scan، watch، admin-create و اعلان | `build_parser, main` |
 | `config.py` | بارگذاری و اعتبارسنجی تنظیمات مستقل عمومی | `AppConfig, load_config, database_path` |
 | `dashboard.py` | Application service، HTTP routes، گیت دسترسی، API و سقف‌های حافظه | `DashboardApp, DashboardHandler, DashboardServer, serve` |
