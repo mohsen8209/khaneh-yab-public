@@ -1,7 +1,7 @@
 # معماری خانه‌یاب عمومی
 
 > این سند خودکار از کد واقعی تولید شده است. منبع ویرایش `scripts/update_architecture.py` است.  
-> اثرانگشت ورودی‌های معماری: `c427cefe8f7cd3d4`
+> اثرانگشت ورودی‌های معماری: `d9434ce3ef31c170`
 
 ## روش استفاده برای توسعه
 
@@ -160,7 +160,9 @@ sequenceDiagram
 
 | روش | مسیر | مسئولیت | دسترسی |
 |---|---|---|---|
+| `POST` | `/api/admin/users/impersonate` | ورود موقت مدیر به حساب کاربر تأییدشده | `admin + CSRF` |
 | `POST` | `/api/admin/users/status` | تأیید، رد یا تعلیق | `admin + CSRF` |
+| `POST` | `/api/auth/impersonation/stop` | پایان مشاهده حساب کاربر و بازگشت به مدیر | `impersonated session + CSRF` |
 | `POST` | `/api/auth/login` | ساخت نشست | `guest` |
 | `POST` | `/api/auth/logout` | ابطال نشست | `authenticated + CSRF` |
 | `POST` | `/api/auth/password` | تغییر رمز و ابطال نشست | `authenticated + CSRF` |
@@ -185,7 +187,7 @@ erDiagram
     listings ||--o{ user_comparisons : "left_token, right_token"
     listings ||--o{ user_feedback : "token"
     users ||--o{ auth_audit_log : "actor_user_id, target_user_id"
-    users ||--o{ sessions : "user_id"
+    users ||--o{ sessions : "impersonator_user_id, user_id"
     users ||--o| user_calibrations : "user_id"
     users ||--o{ user_comparisons : "user_id"
     users ||--o{ user_feedback : "user_id"
@@ -204,7 +206,7 @@ erDiagram
 | `listings` | موجودی مشترک آگهی و امتیاز پایه | `token` | `token, title, district, url, listing_json, score_json, total_score, status, detail_fetched_at, first_seen_at, last_seen_at, notified_at, notification_eligible, is_active, expired_at, filtered_at, filter_reason` | `-` |
 | `personalization_model` | مدل legacy سراسری | `id` | `id, model_json, trained_at, training_signature` | `-` |
 | `scans` | تاریخچه و نتیجه اسکن‌ها | `id` | `id, started_at, finished_at, summary_count, detail_count, expired_count, filtered_count, error` | `-` |
-| `sessions` | نشست‌های امن کاربران | `token_hash` | `token_hash, user_id, csrf_token, created_at, expires_at, last_seen_at, user_agent, remote_address` | `user_id→users.id` |
+| `sessions` | نشست‌های امن کاربران | `token_hash` | `token_hash, user_id, impersonator_user_id, csrf_token, created_at, expires_at, last_seen_at, user_agent, remote_address` | `impersonator_user_id→users.id, user_id→users.id` |
 | `user_calibrations` | پیشرفت و زوج جاری onboarding | `user_id` | `user_id, target_count, completed_count, current_left_token, current_right_token, started_at, completed_at, updated_at` | `current_right_token→listings.token, current_left_token→listings.token, user_id→users.id` |
 | `user_comparisons` | مقایسه‌های خصوصی هر کاربر | `id` | `id, user_id, left_token, right_token, winner_token, kind, reasons_json, created_at` | `right_token→listings.token, left_token→listings.token, user_id→users.id` |
 | `user_feedback` | بازخورد خصوصی هر کاربر | `user_id, token` | `user_id, token, choice, reasons_json, created_at, updated_at` | `token→listings.token, user_id→users.id` |

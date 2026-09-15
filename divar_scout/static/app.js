@@ -100,9 +100,15 @@ async function load() {
 }
 
 function renderAccount(user) {
-  document.querySelector("#current-user").textContent = user.display_name;
+  const impersonating = Boolean(state.auth?.impersonation?.active);
+  document.querySelector("#current-user").textContent = impersonating
+    ? `${user.display_name} · مشاهده توسط مدیر`
+    : user.display_name;
   document.querySelector("#admin-link").hidden = user.role !== "admin";
   document.querySelector("#profile-link").hidden = user.role === "admin";
+  const logout = document.querySelector("#logout-button");
+  logout.textContent = impersonating ? "بازگشت به پنل مدیر" : "خروج";
+  logout.classList.toggle("impersonation-return", impersonating);
   document.querySelector("#scan-button").hidden = false;
 }
 
@@ -615,8 +621,12 @@ document.querySelector("#reset-learning").addEventListener("click", async () => 
 });
 
 document.querySelector("#logout-button").addEventListener("click", async () => {
-  await api("/api/auth/logout", { method: "POST", body: "{}" });
-  location.replace("/login");
+  const impersonating = Boolean(state.auth?.impersonation?.active);
+  const result = await api(
+    impersonating ? "/api/auth/impersonation/stop" : "/api/auth/logout",
+    { method: "POST", body: "{}" },
+  );
+  location.replace(result.redirect || "/login");
 });
 
 load().catch((error) => {

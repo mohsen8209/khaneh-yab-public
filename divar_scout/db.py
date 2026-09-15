@@ -113,13 +113,15 @@ class Database:
                 CREATE TABLE IF NOT EXISTS sessions (
                     token_hash TEXT PRIMARY KEY,
                     user_id INTEGER NOT NULL,
+                    impersonator_user_id INTEGER,
                     csrf_token TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     expires_at TEXT NOT NULL,
                     last_seen_at TEXT NOT NULL,
                     user_agent TEXT,
                     remote_address TEXT,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY (impersonator_user_id) REFERENCES users(id) ON DELETE CASCADE
                 );
                 CREATE INDEX IF NOT EXISTS idx_sessions_user
                     ON sessions(user_id, expires_at);
@@ -246,6 +248,18 @@ class Database:
             columns = {
                 row["name"] for row in connection.execute("PRAGMA table_info(listings)")
             }
+            session_columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(sessions)")
+            }
+            if "impersonator_user_id" not in session_columns:
+                connection.execute(
+                    "ALTER TABLE sessions ADD COLUMN impersonator_user_id INTEGER "
+                    "REFERENCES users(id) ON DELETE CASCADE"
+                )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sessions_impersonator "
+                "ON sessions(impersonator_user_id)"
+            )
             if "notification_eligible" not in columns:
                 connection.execute(
                     "ALTER TABLE listings ADD COLUMN notification_eligible "

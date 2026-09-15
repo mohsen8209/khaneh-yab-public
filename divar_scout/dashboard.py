@@ -877,6 +877,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._clear_session_cookie()
                 self._json({"ok": True})
                 return
+            if path == "/api/auth/impersonation/stop":
+                restored = self.server.app.auth.stop_impersonation(
+                    session,
+                    remote_address=self.client_address[0],
+                    user_agent=self.headers.get("User-Agent", ""),
+                )
+                self._set_session_cookie(restored)
+                self._json({"ok": True, "redirect": "/admin"})
+                return
             if path == "/api/auth/password":
                 self.server.app.auth.change_password(
                     session.user.id,
@@ -896,6 +905,24 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     remote_address=self.client_address[0],
                 )
                 self._json({"ok": True, "user": user.as_dict()})
+                return
+            if path == "/api/admin/users/impersonate":
+                if not self._require_admin(session):
+                    return
+                impersonated = self.server.app.auth.impersonate(
+                    session,
+                    int(body["user_id"]),
+                    remote_address=self.client_address[0],
+                    user_agent=self.headers.get("User-Agent", ""),
+                )
+                self._set_session_cookie(impersonated)
+                self._json(
+                    {
+                        "ok": True,
+                        "user": impersonated.user.as_dict(),
+                        "redirect": self._approved_home(impersonated.user),
+                    }
+                )
                 return
 
             user = self._require_approved(session)
@@ -1057,6 +1084,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 ),
                 "user": session.user.as_dict(),
                 "csrf_token": session.csrf_token,
+                "impersonation": {
+                    "active": session.impersonator_user_id is not None,
+                },
             }
         )
 

@@ -637,8 +637,12 @@ async function saveProfile(event) {
 }
 
 async function logout() {
-  await api("/api/auth/logout", { method: "POST", body: "{}" });
-  location.replace("/login");
+  const impersonating = Boolean(state.auth?.impersonation?.active);
+  const result = await api(
+    impersonating ? "/api/auth/impersonation/stop" : "/api/auth/logout",
+    { method: "POST", body: "{}" },
+  );
+  location.replace(result.redirect || "/login");
 }
 
 async function load() {
@@ -653,6 +657,10 @@ async function load() {
     return;
   }
   document.querySelector("#setup-user").textContent = `${state.auth.user.display_name} · @${state.auth.user.username}`;
+  if (state.auth.impersonation?.active) {
+    document.querySelector("#setup-user").textContent += " · مشاهده توسط مدیر";
+    document.querySelector("#logout-button").textContent = "بازگشت به پنل مدیر";
+  }
   const payload = await api("/api/profile");
   state.profile = payload.profile;
   state.districts = payload.districts || [];

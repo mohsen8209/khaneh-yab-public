@@ -188,6 +188,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .user-actions { display: flex; justify-content: flex-end; gap: 6px; white-space: nowrap; }
 .user-command { min-height: 32px; padding: 0 10px; background: #fff; border: 1px solid var(--line); color: var(--text); }
 .user-command.approve { color: var(--green); border-color: #a7c8b4; }
+.user-command.impersonate { color: var(--blue); border-color: #a9bfd6; font-weight: 700; }
 .user-command.reject, .user-command.suspend { color: var(--accent); border-color: #dfb1ae; }
 .directory-empty { padding: 45px 20px; text-align: center; color: var(--muted); }
 .admin-message { position: fixed; left: 22px; bottom: 22px; margin: 0; box-shadow: 0 8px 24px rgba(31,37,41,.14); }

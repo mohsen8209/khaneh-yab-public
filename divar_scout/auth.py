@@ -75,6 +75,7 @@ class AuthSession:
     csrf_token: str
     expires_at: str
     user: AuthUser
+    impersonator_user_id: int | None = None
 
 
 def normalize_username(value: str) -> str:
@@ -270,27 +271,49 @@ class AuthService:
         *,
         remote_address: str = "",
         user_agent: str = "",
+        impersonator_user_id: int | None = None,
+    ) -> AuthSession:
+        now = datetime.now(UTC)
+        with self.database.connect() as connection:
+            connection.execute("DELETE FROM sessions WHERE expires_at <= ?", (now.isoformat(timespec="seconds"),))
+            return self._insert_session(
+                connection,
+                user,
+                now=now,
+                remote_address=remote_address,
+                user_agent=user_agent,
+                impersonator_user_id=impersonator_user_id,
+            )
+
+    @staticmethod
+    def _insert_session(
+        connection: Any,
+        user: AuthUser,
+        *,
+        now: datetime,
+        remote_address: str,
+        user_agent: str,
+        impersonator_user_id: int | None = None,
     ) -> AuthSession:
         raw_token = secrets.token_urlsafe(32)
         csrf_token = secrets.token_urlsafe(24)
-        now = datetime.now(UTC)
+        timestamp = now.isoformat(timespec="seconds")
         expires_at = (now + timedelta(days=SESSION_DAYS)).isoformat(timespec="seconds")
-        with self.database.connect() as connection:
-            connection.execute("DELETE FROM sessions WHERE expires_at <= ?", (now.isoformat(timespec="seconds"),))
-            connection.execute(
-                """
-                INSERT INTO sessions(
-                    token_hash, user_id, csrf_token, created_at, expires_at,
-                    last_seen_at, user_agent, remote_address
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    token_hash(raw_token), user.id, csrf_token,
-                    now.isoformat(timespec="seconds"), expires_at,
-                    now.isoformat(timespec="seconds"), user_agent[:300], remote_address[:80],
-                ),
-            )
-        return AuthSession(raw_token, csrf_token, expires_at, user)
+        connection.execute(
+            """
+            INSERT INTO sessions(
+                token_hash, user_id, impersonator_user_id, csrf_token, created_at,
+                expires_at, last_seen_at, user_agent, remote_address
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                token_hash(raw_token), user.id, impersonator_user_id, csrf_token,
+                timestamp, expires_at, timestamp, user_agent[:300], remote_address[:80],
+            ),
+        )
+        return AuthSession(
+            raw_token, csrf_token, expires_at, user, impersonator_user_id
+        )
 
     def session(self, raw_token: str | None) -> AuthSession | None:
         if not raw_token:
@@ -299,7 +322,8 @@ class AuthService:
         with self.database.connect() as connection:
             row = connection.execute(
                 """
-                SELECT users.*, sessions.csrf_token, sessions.expires_at
+                SELECT users.*, sessions.csrf_token, sessions.expires_at,
+                       sessions.impersonator_user_id
                 FROM sessions JOIN users ON users.id = sessions.user_id
                 WHERE sessions.token_hash = ? AND sessions.expires_at > ?
                 """,
@@ -311,7 +335,98 @@ class AuthService:
                 "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?",
                 (now, token_hash(raw_token)),
             )
-        return AuthSession(raw_token, str(row["csrf_token"]), str(row["expires_at"]), AuthUser.from_row(row))
+        return AuthSession(
+            raw_token,
+            str(row["csrf_token"]),
+            str(row["expires_at"]),
+            AuthUser.from_row(row),
+            (
+                int(row["impersonator_user_id"])
+                if row["impersonator_user_id"] is not None else None
+            ),
+        )
+
+    def impersonate(
+        self,
+        admin_session: AuthSession,
+        target_user_id: int,
+        *,
+        remote_address: str = "",
+        user_agent: str = "",
+    ) -> AuthSession:
+        actor = admin_session.user
+        if actor.role != "admin" or actor.status != "approved":
+            raise AuthError("دسترسی مدیریت لازم است")
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM users WHERE id = ?", (target_user_id,)
+            ).fetchone()
+            if not row:
+                raise AuthError("کاربر پیدا نشد")
+            target = AuthUser.from_row(row)
+            if target.role == "admin":
+                raise AuthError("ورود به‌جای حساب مدیر مجاز نیست")
+            if target.status != "approved":
+                raise AuthError("برای ورود، حساب کاربر باید ابتدا تأیید شود")
+            impersonated = self._insert_session(
+                connection,
+                target,
+                now=datetime.now(UTC),
+                remote_address=remote_address,
+                user_agent=user_agent,
+                impersonator_user_id=actor.id,
+            )
+            connection.execute(
+                "DELETE FROM sessions WHERE token_hash = ?",
+                (token_hash(admin_session.token),),
+            )
+            self._audit(
+                connection,
+                "admin.impersonation_started",
+                actor_user_id=actor.id,
+                target_user_id=target.id,
+                remote_address=remote_address,
+            )
+        return impersonated
+
+    def stop_impersonation(
+        self,
+        session: AuthSession,
+        *,
+        remote_address: str = "",
+        user_agent: str = "",
+    ) -> AuthSession:
+        admin_id = session.impersonator_user_id
+        if admin_id is None:
+            raise AuthError("این نشست در حالت ورود مدیر نیست")
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM users WHERE id = ?", (admin_id,)
+            ).fetchone()
+            if not row:
+                raise AuthError("حساب مدیر پیدا نشد")
+            admin = AuthUser.from_row(row)
+            if admin.role != "admin" or admin.status != "approved":
+                raise AuthError("دسترسی مدیریت دیگر فعال نیست")
+            restored = self._insert_session(
+                connection,
+                admin,
+                now=datetime.now(UTC),
+                remote_address=remote_address,
+                user_agent=user_agent,
+            )
+            connection.execute(
+                "DELETE FROM sessions WHERE token_hash = ?",
+                (token_hash(session.token),),
+            )
+            self._audit(
+                connection,
+                "admin.impersonation_stopped",
+                actor_user_id=admin.id,
+                target_user_id=session.user.id,
+                remote_address=remote_address,
+            )
+        return restored
 
     def logout(self, raw_token: str | None, *, remote_address: str = "") -> None:
         if not raw_token:

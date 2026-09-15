@@ -68,6 +68,15 @@ function userActions(user) {
   actions.className = "user-actions";
   if (user.role === "admin") return actions;
   const choices = [];
+  if (user.status === "approved") {
+    const impersonate = document.createElement("button");
+    impersonate.type = "button";
+    impersonate.className = "user-command impersonate";
+    impersonate.textContent = "ورود به حساب";
+    impersonate.title = `مشاهده خانه‌یاب دقیقاً با حساب ${user.display_name}`;
+    impersonate.addEventListener("click", () => impersonateUser(user, impersonate));
+    actions.append(impersonate);
+  }
   if (user.status !== "approved") choices.push(["approved", "تأیید", "approve"]);
   if (user.status === "pending") choices.push(["rejected", "رد", "reject"]);
   if (user.status === "approved") choices.push(["suspended", "تعلیق", "suspend"]);
@@ -80,6 +89,20 @@ function userActions(user) {
     actions.append(button);
   });
   return actions;
+}
+
+async function impersonateUser(user, button) {
+  button.disabled = true;
+  try {
+    const result = await api("/api/admin/users/impersonate", {
+      method: "POST",
+      body: JSON.stringify({ user_id: user.id }),
+    });
+    location.replace(result.redirect || "/");
+  } catch (error) {
+    showMessage(error.message, true);
+    button.disabled = false;
+  }
 }
 
 function renderUsers() {

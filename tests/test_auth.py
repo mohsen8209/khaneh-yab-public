@@ -297,6 +297,84 @@ class AuthHttpTests(unittest.TestCase):
         self.assertEqual(status, 403)
         self.assertIn("امنیتی", csrf_error["error"])
 
+    def test_admin_can_enter_an_approved_user_account_and_return(self) -> None:
+        target = self.auth.register("inspect_me", "کاربر قابل بررسی", "SecurePass123")
+        self.auth.set_user_status(self.admin, target.id, "approved")
+        admin_browser = self.opener()
+        status, _, _ = self.request(
+            admin_browser,
+            "/api/auth/login",
+            payload={"username": "root_admin", "password": "AdminSecure123"},
+        )
+        self.assertEqual(status, 200)
+        _, admin_state, _ = self.request(admin_browser, "/api/auth/me")
+
+        status, switched, _ = self.request(
+            admin_browser,
+            "/api/admin/users/impersonate",
+            payload={"user_id": target.id},
+            csrf=admin_state["csrf_token"],
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(switched["user"]["username"], "inspect_me")
+        self.assertEqual(switched["redirect"], "/setup")
+
+        _, user_state, _ = self.request(admin_browser, "/api/auth/me")
+        self.assertEqual(user_state["user"]["id"], target.id)
+        self.assertTrue(user_state["impersonation"]["active"])
+        status, _, _ = self.request(admin_browser, "/api/admin/users")
+        self.assertEqual(status, 403)
+
+        status, restored, _ = self.request(
+            admin_browser,
+            "/api/auth/impersonation/stop",
+            payload={},
+            csrf=user_state["csrf_token"],
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(restored["redirect"], "/admin")
+        _, restored_state, _ = self.request(admin_browser, "/api/auth/me")
+        self.assertEqual(restored_state["user"]["id"], self.admin.id)
+        self.assertFalse(restored_state["impersonation"]["active"])
+
+        with self.database.connect() as connection:
+            actions = {
+                str(row["action"])
+                for row in connection.execute(
+                    "SELECT action FROM auth_audit_log WHERE target_user_id = ?",
+                    (target.id,),
+                ).fetchall()
+            }
+        self.assertIn("admin.impersonation_started", actions)
+        self.assertIn("admin.impersonation_stopped", actions)
+
+    def test_admin_cannot_impersonate_unapproved_or_admin_accounts(self) -> None:
+        pending = self.auth.register("still_pending", "کاربر منتظر", "SecurePass123")
+        admin_browser = self.opener()
+        self.request(
+            admin_browser,
+            "/api/auth/login",
+            payload={"username": "root_admin", "password": "AdminSecure123"},
+        )
+        _, admin_state, _ = self.request(admin_browser, "/api/auth/me")
+
+        status, pending_error, _ = self.request(
+            admin_browser,
+            "/api/admin/users/impersonate",
+            payload={"user_id": pending.id},
+            csrf=admin_state["csrf_token"],
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("تأیید", pending_error["error"])
+        status, admin_error, _ = self.request(
+            admin_browser,
+            "/api/admin/users/impersonate",
+            payload={"user_id": self.admin.id},
+            csrf=admin_state["csrf_token"],
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("مدیر", admin_error["error"])
+
 
     def test_unexpected_get_api_errors_return_complete_json_response(self) -> None:
         admin_browser = self.opener()
@@ -352,8 +430,8 @@ class AuthHttpTests(unittest.TestCase):
         status, payload, headers = self.request(self.opener(), "/healthz")
 
         self.assertEqual(status, 200)
-        self.assertEqual(payload, {"ok": True, "release": "0.1.11"})
-        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.11")
+        self.assertEqual(payload, {"ok": True, "release": "0.1.12"})
+        self.assertEqual(headers.get("X-Khaneyab-Release"), "0.1.12")
 
 
 if __name__ == "__main__":

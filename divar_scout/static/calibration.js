@@ -271,8 +271,12 @@ async function loadComparison() {
 }
 
 async function logout() {
-  await api("/api/auth/logout", { method: "POST", body: "{}" });
-  location.replace("/login");
+  const impersonating = Boolean(state.auth?.impersonation?.active);
+  const result = await api(
+    impersonating ? "/api/auth/impersonation/stop" : "/api/auth/logout",
+    { method: "POST", body: "{}" },
+  );
+  location.replace(result.redirect || "/login");
 }
 
 async function start() {
@@ -295,6 +299,10 @@ async function start() {
       return;
     }
     document.querySelector("#calibration-user").textContent = `${state.auth.user.display_name} · @${state.auth.user.username}`;
+    if (state.auth.impersonation?.active) {
+      document.querySelector("#calibration-user").textContent += " · مشاهده توسط مدیر";
+      document.querySelector("#logout-button").textContent = "بازگشت به پنل مدیر";
+    }
     await loadComparison();
   } catch (error) {
     setVisible("#loading-state", false);

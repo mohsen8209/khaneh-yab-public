@@ -68,8 +68,16 @@ ROUTE_DESCRIPTIONS = {
     ("POST", "/api/auth/register"): ("ساخت حساب pending", "guest"),
     ("POST", "/api/auth/login"): ("ساخت نشست", "guest"),
     ("POST", "/api/auth/logout"): ("ابطال نشست", "authenticated + CSRF"),
+    ("POST", "/api/auth/impersonation/stop"): (
+        "پایان مشاهده حساب کاربر و بازگشت به مدیر",
+        "impersonated session + CSRF",
+    ),
     ("POST", "/api/auth/password"): ("تغییر رمز و ابطال نشست", "authenticated + CSRF"),
     ("POST", "/api/admin/users/status"): ("تأیید، رد یا تعلیق", "admin + CSRF"),
+    ("POST", "/api/admin/users/impersonate"): (
+        "ورود موقت مدیر به حساب کاربر تأییدشده",
+        "admin + CSRF",
+    ),
     ("POST", "/api/profile"): ("ثبت پروفایل و شروع onboarding تازه", "approved + CSRF"),
     ("POST", "/api/calibration"): ("ثبت اتمیک یک انتخاب", "profile required + CSRF"),
     ("POST", "/api/scan"): ("اسکن متمرکز پروفایل کاربر", "profile required + CSRF"),
