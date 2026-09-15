@@ -177,6 +177,7 @@ class ScoutService:
 
             records = self.database.list_records(limit=2000)
             scored: list[tuple[Listing, ScoreResult, bool]] = []
+            score_inputs: list[tuple[dict[str, Any], Listing]] = []
             for record in records:
                 if not record.get("detail_fetched_at"):
                     continue
@@ -191,16 +192,23 @@ class ScoutService:
                     }
                 }
                 listing = Listing(**clean)
-                comparable = self.database.comparable_costs(
-                    listing.district or "",
-                    listing.rooms,
-                    listing.size,
-                    float(self.config.profile["deposit_to_monthly_rate"]),
-                    exclude_token=listing.token,
+                score_inputs.append((record, listing))
+            rate = float(self.config.profile["deposit_to_monthly_rate"])
+            comparable_costs = self.database.comparable_costs_for(
+                [listing for _record, listing in score_inputs], rate
+            )
+            duplicate_counts = self.database.duplicate_image_counts(
+                [listing.token for _record, listing in score_inputs]
+            )
+            for record, listing in score_inputs:
+                score = score_listing(
+                    listing,
+                    self.config,
+                    self.atlas,
+                    duplicate_image_count=duplicate_counts.get(listing.token, 0),
+                    comparable_costs=comparable_costs.get(listing.token, []),
                 )
-                score = self._score_listing(
-                    listing, comparable_costs=comparable
-                )
+                score = self.personalization.apply(listing, score)
                 self.database.save_score(listing.token, score)
                 scored.append(
                     (listing, score, record.get("feedback") == "rejected")

@@ -60,6 +60,33 @@ class FakeClient:
         return self.details[summary.token]
 
 
+class DatabaseScoringContextTests(unittest.TestCase):
+    def test_batch_context_preserves_comparables_and_duplicate_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "context.sqlite3")
+            first = listing("first", detailed=True)
+            second = listing("second", detailed=True)
+            second.size = 95
+            second.rent = 35_000_000
+            first.images = ["https://example.test/shared.jpg", "https://example.test/a.jpg"]
+            second.images = ["https://example.test/shared.jpg", "https://example.test/b.jpg"]
+            database.upsert_listing(first, detail_fetched=True)
+            database.upsert_listing(second, detail_fetched=True)
+
+            duplicates = database.duplicate_image_counts([first.token, second.token])
+            comparables = database.comparable_costs_for([first, second], 0.03)
+
+            self.assertEqual(duplicates, {"first": 1, "second": 1})
+            self.assertEqual(
+                comparables["first"],
+                [(second.rent + second.deposit * 0.03) / second.size],
+            )
+            self.assertEqual(
+                comparables["second"],
+                [(first.rent + first.deposit * 0.03) / first.size],
+            )
+
+
 class ExpiringClient:
     def __init__(self) -> None:
         self.run = 0

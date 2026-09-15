@@ -3,9 +3,10 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from divar_scout.config import load_config
-from divar_scout.dashboard import DashboardApp, DashboardServer
+from divar_scout.dashboard import DashboardApp, DashboardHandler, DashboardServer
 from divar_scout.db import Database
 from divar_scout.models import Listing, ScoreResult
 
@@ -13,6 +14,28 @@ from divar_scout.models import Listing, ScoreResult
 class DashboardTests(unittest.TestCase):
     def test_dashboard_port_cannot_be_shared_by_stale_processes(self) -> None:
         self.assertFalse(DashboardServer.allow_reuse_address)
+        self.assertTrue(DashboardServer.daemon_threads)
+
+    def test_disconnected_client_does_not_trigger_a_second_error_response(self) -> None:
+        handler = object.__new__(DashboardHandler)
+        with (
+            patch.object(
+                DashboardHandler, "_handle_get", side_effect=BrokenPipeError()
+            ),
+            patch.object(DashboardHandler, "_internal_error") as internal_error,
+        ):
+            handler.do_GET()
+        internal_error.assert_not_called()
+
+    def test_disconnect_while_writing_known_error_is_ignored(self) -> None:
+        handler = object.__new__(DashboardHandler)
+        with (
+            patch.object(DashboardHandler, "_handle_get", side_effect=ValueError()),
+            patch.object(
+                DashboardHandler, "_known_error", side_effect=ConnectionResetError()
+            ),
+        ):
+            handler.do_GET()
 
     def test_profile_catalog_hides_only_map_api_breaking_districts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

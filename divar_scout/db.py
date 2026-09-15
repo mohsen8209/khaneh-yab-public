@@ -862,17 +862,76 @@ class Database:
         return bool(row and row["detail_fetched_at"])
 
     def duplicate_image_count(self, token: str) -> int:
+        return self.duplicate_image_counts([token]).get(token, 0)
+
+    def duplicate_image_counts(self, tokens: list[str]) -> dict[str, int]:
+        unique_tokens = list(dict.fromkeys(token for token in tokens if token))
+        counts = {token: 0 for token in unique_tokens}
+        if not unique_tokens:
+            return counts
         with self.connect() as connection:
-            row = connection.execute(
+            for offset in range(0, len(unique_tokens), 500):
+                batch = unique_tokens[offset : offset + 500]
+                placeholders = ",".join("?" for _ in batch)
+                rows = connection.execute(
+                    f"""
+                    SELECT own.token, COUNT(DISTINCT other.token) AS duplicates
+                    FROM listing_images own
+                    JOIN listing_images other
+                      ON own.fingerprint = other.fingerprint
+                     AND other.token <> own.token
+                    WHERE own.token IN ({placeholders})
+                    GROUP BY own.token
+                    """,
+                    batch,
+                ).fetchall()
+                counts.update(
+                    {str(row["token"]): int(row["duplicates"] or 0) for row in rows}
+                )
+        return counts
+
+    def comparable_costs_for(
+        self, listings: list[Listing], rate: float
+    ) -> dict[str, list[float]]:
+        targets = [listing for listing in listings if listing.token]
+        costs_by_token = {listing.token: [] for listing in targets}
+        if not targets:
+            return costs_by_token
+        with self.connect() as connection:
+            rows = connection.execute(
                 """
-                SELECT COUNT(DISTINCT other.token) AS duplicates
-                FROM listing_images own
-                JOIN listing_images other ON own.fingerprint = other.fingerprint
-                WHERE own.token = ? AND other.token <> own.token
-                """,
-                (token,),
-            ).fetchone()
-        return int(row["duplicates"] or 0)
+                SELECT listing_json FROM listings
+                WHERE detail_fetched_at IS NOT NULL AND is_active = 1
+                """
+            ).fetchall()
+        market_by_district: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            item = json.loads(row["listing_json"])
+            district = str(item.get("district") or "")
+            if district:
+                market_by_district.setdefault(district, []).append(item)
+        for listing in targets:
+            if not listing.district or not listing.size:
+                continue
+            size_min = max(1, round(listing.size * 0.85))
+            size_max = round(listing.size * 1.15)
+            comparable: list[float] = []
+            for item in market_by_district.get(listing.district, []):
+                if item.get("token") == listing.token:
+                    continue
+                item_size = item.get("size")
+                if not item_size or not size_min <= item_size <= size_max:
+                    continue
+                if listing.rooms is not None and item.get("rooms") not in (
+                    None,
+                    listing.rooms,
+                ):
+                    continue
+                deposit = item.get("deposit") or 0
+                rent = item.get("rent") or 0
+                comparable.append((rent + deposit * rate) / item_size)
+            costs_by_token[listing.token] = comparable
+        return costs_by_token
 
     def comparable_costs(
         self,
@@ -885,32 +944,16 @@ class Database:
     ) -> list[float]:
         if not district or not size:
             return []
-        size_min = max(1, round(size * 0.85))
-        size_max = round(size * 1.15)
-        costs: list[float] = []
-        with self.connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT listing_json FROM listings
-                WHERE district = ?
-                  AND detail_fetched_at IS NOT NULL
-                  AND is_active = 1
-                """,
-                (district,),
-            ).fetchall()
-        for row in rows:
-            item = json.loads(row["listing_json"])
-            if exclude_token and item.get("token") == exclude_token:
-                continue
-            item_size = item.get("size")
-            if not item_size or not size_min <= item_size <= size_max:
-                continue
-            if rooms is not None and item.get("rooms") not in (None, rooms):
-                continue
-            deposit = item.get("deposit") or 0
-            rent = item.get("rent") or 0
-            costs.append((rent + deposit * rate) / item_size)
-        return costs
+        token = exclude_token or "__market_target__"
+        target = Listing(
+            token=token,
+            title="",
+            url="",
+            district=district,
+            rooms=rooms,
+            size=size,
+        )
+        return self.comparable_costs_for([target], rate)[token]
 
     def list_records(
         self,

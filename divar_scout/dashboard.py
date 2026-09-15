@@ -46,6 +46,11 @@ CALIBRATION_TARGET = 12
 CALIBRATION_RECORD_LIMIT = 140
 CALIBRATION_POOL_SCAN_LIMIT = 2000
 MAX_CALIBRATION_SCAN_BATCHES = 3
+CLIENT_DISCONNECT_ERRORS = (
+    BrokenPipeError,
+    ConnectionAbortedError,
+    ConnectionResetError,
+)
 
 
 class DashboardApp:
@@ -355,31 +360,35 @@ class DashboardApp:
             if listing_exclusion_reason(item) is None
             and profile_scope_exclusion_reason(item, user_config) is None
         ]
+        listing_fields = Listing.__dataclass_fields__
+        detailed_listings = {
+            item["token"]: Listing(
+                **{key: value for key, value in item.items() if key in listing_fields}
+            )
+            for item in records
+            if user_id is not None and item.get("detail_fetched_at")
+        }
+        rate = float(user_config.profile["deposit_to_monthly_rate"])
+        comparable_costs = (
+            self.database.comparable_costs_for(list(detailed_listings.values()), rate)
+            if include_market_context else {}
+        )
+        duplicate_counts = (
+            self.database.duplicate_image_counts(list(detailed_listings))
+            if include_market_context else {}
+        )
         for item in records:
-            if user_id is not None and item.get("detail_fetched_at"):
-                listing_fields = Listing.__dataclass_fields__
-                listing = Listing(
-                    **{key: value for key, value in item.items() if key in listing_fields}
-                )
-                comparable = (
-                    self.database.comparable_costs(
-                        listing.district or "",
-                        listing.rooms,
-                        listing.size,
-                        float(user_config.profile["deposit_to_monthly_rate"]),
-                        exclude_token=listing.token,
-                    )
-                    if include_market_context else []
-                )
+            listing = detailed_listings.get(item["token"])
+            if listing is not None:
                 base_score = score_listing(
                     listing,
                     user_config,
                     self.atlas,
                     duplicate_image_count=(
-                        self.database.duplicate_image_count(listing.token)
+                        duplicate_counts.get(listing.token, 0)
                         if include_market_context else 0
                     ),
-                    comparable_costs=comparable,
+                    comparable_costs=comparable_costs.get(listing.token, []),
                 )
                 item["score"] = base_score.as_dict()
             if item.get("score"):
@@ -603,10 +612,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         try:
             self._handle_get()
+        except CLIENT_DISCONNECT_ERRORS:
+            return
         except (AuthError, KeyError, ValueError, RuntimeError) as error:
-            self._known_error(error)
+            self._safe_error_response(self._known_error, error)
         except Exception as error:
-            self._internal_error(error)
+            self._safe_error_response(self._internal_error, error)
 
     def _handle_get(self) -> None:
         parsed = urlparse(self.path)
@@ -882,14 +893,28 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             else:
                 self._json({"error": "مسیر پیدا نشد"}, status=HTTPStatus.NOT_FOUND)
+        except CLIENT_DISCONNECT_ERRORS:
+            return
         except RateLimitError as error:
-            self._json({"error": str(error)}, status=HTTPStatus.TOO_MANY_REQUESTS)
+            self._safe_error_response(self._rate_limit_error, error)
         except (AuthError, KeyError, ValueError, RuntimeError) as error:
-            self._known_error(error)
+            self._safe_error_response(self._known_error, error)
         except json.JSONDecodeError:
-            self._json({"error": "بدنه درخواست معتبر نیست"}, status=HTTPStatus.BAD_REQUEST)
+            self._safe_error_response(self._invalid_json_error, ValueError())
         except Exception as error:
-            self._internal_error(error)
+            self._safe_error_response(self._internal_error, error)
+
+    def _safe_error_response(self, responder: Any, error: Exception) -> None:
+        try:
+            responder(error)
+        except CLIENT_DISCONNECT_ERRORS:
+            return
+
+    def _rate_limit_error(self, error: Exception) -> None:
+        self._json({"error": str(error)}, status=HTTPStatus.TOO_MANY_REQUESTS)
+
+    def _invalid_json_error(self, _error: Exception) -> None:
+        self._json({"error": "بدنه درخواست معتبر نیست"}, status=HTTPStatus.BAD_REQUEST)
 
     def _known_error(self, error: Exception) -> None:
         if urlparse(self.path).path.startswith("/api/"):
@@ -1148,6 +1173,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 class DashboardServer(ThreadingHTTPServer):
     allow_reuse_address = False
+    daemon_threads = True
 
     def __init__(self, address: tuple[str, int], app: DashboardApp) -> None:
         super().__init__(address, DashboardHandler)
