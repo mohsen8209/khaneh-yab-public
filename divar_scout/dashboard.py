@@ -4,7 +4,9 @@ import hmac
 import json
 import mimetypes
 import threading
+import time
 import traceback
+from collections import OrderedDict
 from copy import deepcopy
 from datetime import UTC, datetime
 from http import HTTPStatus
@@ -46,6 +48,8 @@ CALIBRATION_TARGET = 12
 CALIBRATION_RECORD_LIMIT = 140
 CALIBRATION_POOL_SCAN_LIMIT = 2000
 MAX_CALIBRATION_SCAN_BATCHES = 3
+RECORD_CACHE_TTL_SECONDS = 10
+RECORD_CACHE_MAX_ENTRIES = 4
 CLIENT_DISCONNECT_ERRORS = (
     BrokenPipeError,
     ConnectionAbortedError,
@@ -74,6 +78,14 @@ class DashboardApp:
         }
         self.engine_lock = threading.Lock()
         self._engines: dict[int | None, PersonalizationEngine] = {}
+        self.records_cache_lock = threading.Lock()
+        self._records_cache: OrderedDict[
+            tuple[int | None, int, bool], tuple[float, list[dict[str, Any]]]
+        ] = OrderedDict()
+        self._records_cache_generation = 0
+        self._records_compute_locks: dict[
+            tuple[int | None, int, bool], threading.Lock
+        ] = {}
         self.personalization = self.engine(None)
 
     def engine(self, user_id: int | None) -> PersonalizationEngine:
@@ -114,6 +126,7 @@ class DashboardApp:
         with self.engine_lock:
             self._engines.pop(user_id, None)
         self.engine(user_id).retrain()
+        self._invalidate_records_cache(user_id)
         return profile
 
     def listings(
@@ -190,7 +203,9 @@ class DashboardApp:
         if not self.database.has_listing(token):
             raise ValueError("آگهی پیدا نشد")
         self.database.set_feedback(token, choice, reasons, user_id=user_id)
-        return self.engine(user_id).retrain()
+        state = self.engine(user_id).retrain()
+        self._invalidate_records_cache(user_id)
+        return state
 
     def comparison(
         self,
@@ -234,7 +249,9 @@ class DashboardApp:
             kind,
             user_id=user_id,
         )
-        return self.engine(user_id).retrain()
+        state = self.engine(user_id).retrain()
+        self._invalidate_records_cache(user_id)
+        return state
 
     def calibration(self, user_id: int) -> dict[str, Any]:
         state = self.database.calibration_state(user_id)
@@ -332,6 +349,7 @@ class DashboardApp:
             user_id, left_token, right_token, winner_token
         )
         learning = self.engine(user_id).retrain()
+        self._invalidate_records_cache(user_id)
         return {
             "ok": True,
             "calibration": _public_calibration_state(state),
@@ -341,7 +359,9 @@ class DashboardApp:
 
     def reset_personalization(self, user_id: int | None = None) -> dict[str, Any]:
         self.database.clear_personalization(user_id=user_id)
-        return self.engine(user_id).retrain()
+        state = self.engine(user_id).retrain()
+        self._invalidate_records_cache(user_id)
+        return state
 
     def _personalized_records(
         self,
@@ -349,6 +369,49 @@ class DashboardApp:
         *,
         limit: int = 500,
         include_market_context: bool = True,
+    ) -> list[dict[str, Any]]:
+        cache_key = (user_id, limit, include_market_context)
+        now = time.monotonic()
+        with self.records_cache_lock:
+            cached = self._records_cache.get(cache_key)
+            if cached and cached[0] > now:
+                self._records_cache.move_to_end(cache_key)
+                return cached[1]
+            compute_lock = self._records_compute_locks.setdefault(
+                cache_key, threading.Lock()
+            )
+            generation = self._records_cache_generation
+        with compute_lock:
+            now = time.monotonic()
+            with self.records_cache_lock:
+                cached = self._records_cache.get(cache_key)
+                if cached and cached[0] > now:
+                    self._records_cache.move_to_end(cache_key)
+                    return cached[1]
+                generation = self._records_cache_generation
+            records = self._build_personalized_records(
+                user_id,
+                limit=limit,
+                include_market_context=include_market_context,
+            )
+            with self.records_cache_lock:
+                if generation != self._records_cache_generation:
+                    return records
+                self._records_cache[cache_key] = (
+                    time.monotonic() + RECORD_CACHE_TTL_SECONDS,
+                    records,
+                )
+                self._records_cache.move_to_end(cache_key)
+                while len(self._records_cache) > RECORD_CACHE_MAX_ENTRIES:
+                    self._records_cache.popitem(last=False)
+            return records
+
+    def _build_personalized_records(
+        self,
+        user_id: int | None,
+        *,
+        limit: int,
+        include_market_context: bool,
     ) -> list[dict[str, Any]]:
         if user_id is not None and not self.database.user_profile_complete(user_id):
             return []
@@ -360,6 +423,9 @@ class DashboardApp:
             if listing_exclusion_reason(item) is None
             and profile_scope_exclusion_reason(item, user_config) is None
         ]
+        for item in records:
+            item.pop("raw_summary", None)
+            item.pop("raw_detail", None)
         listing_fields = Listing.__dataclass_fields__
         detailed_listings = {
             item["token"]: Listing(
@@ -397,6 +463,15 @@ class DashboardApp:
                     item["score"]["status"] = "rejected"
                     item["score"]["user_rejected"] = True
         return records
+
+    def _invalidate_records_cache(self, user_id: int | None = None) -> None:
+        with self.records_cache_lock:
+            self._records_cache_generation += 1
+            if user_id is None:
+                self._records_cache.clear()
+                return
+            for key in [key for key in self._records_cache if key[0] == user_id]:
+                self._records_cache.pop(key, None)
 
     def safe_config(
         self, *, user_id: int | None = None, is_admin: bool = False
@@ -539,6 +614,7 @@ class DashboardApp:
                     archive_missing=archive_missing,
                     user_id=user_id,
                 )
+                self._invalidate_records_cache()
                 if self._needs_calibration_top_up(
                     user_id, result, calibration_batch
                 ):

@@ -2,6 +2,7 @@ import tempfile
 import threading
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +13,36 @@ from divar_scout.models import Listing, ScoreResult
 
 
 class DashboardTests(unittest.TestCase):
+    def test_parallel_dashboard_reads_share_one_bounded_computation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            app = DashboardApp(
+                load_config(), database=Database(Path(directory) / "test.sqlite3")
+            )
+            calls = 0
+            calls_lock = threading.Lock()
+
+            def build_records(*_args, **_kwargs):
+                nonlocal calls
+                with calls_lock:
+                    calls += 1
+                time.sleep(0.05)
+                return [{"token": "shared-result"}]
+
+            with patch.object(app, "_build_personalized_records", build_records):
+                with ThreadPoolExecutor(max_workers=12) as executor:
+                    results = list(
+                        executor.map(
+                            lambda _index: app._personalized_records(user_id=42),
+                            range(24),
+                        )
+                    )
+
+            self.assertEqual(calls, 1)
+            self.assertTrue(
+                all(result[0]["token"] == "shared-result" for result in results)
+            )
+            self.assertLessEqual(len(app._records_cache), 4)
+
     def test_dashboard_port_cannot_be_shared_by_stale_processes(self) -> None:
         self.assertFalse(DashboardServer.allow_reuse_address)
         self.assertTrue(DashboardServer.daemon_threads)

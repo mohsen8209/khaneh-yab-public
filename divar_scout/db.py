@@ -904,31 +904,39 @@ class Database:
                 WHERE detail_fetched_at IS NOT NULL AND is_active = 1
                 """
             ).fetchall()
-        market_by_district: dict[str, list[dict[str, Any]]] = {}
+        market_by_district: dict[str, list[tuple[str, int | None, int | None, int, int]]] = {}
         for row in rows:
             item = json.loads(row["listing_json"])
             district = str(item.get("district") or "")
             if district:
-                market_by_district.setdefault(district, []).append(item)
+                market_by_district.setdefault(district, []).append(
+                    (
+                        str(item.get("token") or ""),
+                        item.get("size"),
+                        item.get("rooms"),
+                        int(item.get("deposit") or 0),
+                        int(item.get("rent") or 0),
+                    )
+                )
+        del rows
         for listing in targets:
             if not listing.district or not listing.size:
                 continue
             size_min = max(1, round(listing.size * 0.85))
             size_max = round(listing.size * 1.15)
             comparable: list[float] = []
-            for item in market_by_district.get(listing.district, []):
-                if item.get("token") == listing.token:
+            for token, item_size, item_rooms, deposit, rent in market_by_district.get(
+                listing.district, []
+            ):
+                if token == listing.token:
                     continue
-                item_size = item.get("size")
                 if not item_size or not size_min <= item_size <= size_max:
                     continue
-                if listing.rooms is not None and item.get("rooms") not in (
+                if listing.rooms is not None and item_rooms not in (
                     None,
                     listing.rooms,
                 ):
                     continue
-                deposit = item.get("deposit") or 0
-                rent = item.get("rent") or 0
                 comparable.append((rent + deposit * rate) / item_size)
             costs_by_token[listing.token] = comparable
         return costs_by_token

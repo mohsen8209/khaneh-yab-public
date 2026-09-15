@@ -177,7 +177,7 @@ class ScoutService:
 
             records = self.database.list_records(limit=2000)
             scored: list[tuple[Listing, ScoreResult, bool]] = []
-            score_inputs: list[tuple[dict[str, Any], Listing]] = []
+            score_inputs: list[tuple[bool, Listing]] = []
             for record in records:
                 if not record.get("detail_fetched_at"):
                     continue
@@ -188,19 +188,21 @@ class ScoutService:
                     not in {
                         "score", "first_seen_at", "last_seen_at", "detail_fetched_at",
                         "notified_at", "is_active", "expired_at", "feedback",
-                        "filtered_at", "filter_reason", "feedback_reasons"
+                        "filtered_at", "filter_reason", "feedback_reasons",
+                        "raw_summary", "raw_detail"
                     }
                 }
                 listing = Listing(**clean)
-                score_inputs.append((record, listing))
+                score_inputs.append((record.get("feedback") == "rejected", listing))
+            del records
             rate = float(self.config.profile["deposit_to_monthly_rate"])
             comparable_costs = self.database.comparable_costs_for(
-                [listing for _record, listing in score_inputs], rate
+                [listing for _rejected, listing in score_inputs], rate
             )
             duplicate_counts = self.database.duplicate_image_counts(
-                [listing.token for _record, listing in score_inputs]
+                [listing.token for _rejected, listing in score_inputs]
             )
-            for record, listing in score_inputs:
+            for personally_rejected, listing in score_inputs:
                 score = score_listing(
                     listing,
                     self.config,
@@ -210,9 +212,7 @@ class ScoutService:
                 )
                 score = self.personalization.apply(listing, score)
                 self.database.save_score(listing.token, score)
-                scored.append(
-                    (listing, score, record.get("feedback") == "rejected")
-                )
+                scored.append((listing, score, personally_rejected))
                 scored_count += 1
 
             for listing, score, personally_rejected in scored:
