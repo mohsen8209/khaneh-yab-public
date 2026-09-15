@@ -1,7 +1,7 @@
 # معماری خانه‌یاب عمومی
 
 > این سند خودکار از کد واقعی تولید شده است. منبع ویرایش `scripts/update_architecture.py` است.  
-> اثرانگشت ورودی‌های معماری: `d9434ce3ef31c170`
+> اثرانگشت ورودی‌های معماری: `896c9b92d638e736`
 
 ## روش استفاده برای توسعه
 
@@ -131,17 +131,17 @@ sequenceDiagram
 | `auth.py` | حساب، رمز scrypt، نشست، CSRF، تأیید مدیر و ممیزی | `AuthError, RateLimitError, AuthUser, AuthSession, normalize_username, validate_username` |
 | `cli.py` | فرمان‌های dashboard، scan، watch، admin-create و اعلان | `build_parser, main` |
 | `config.py` | بارگذاری و اعتبارسنجی تنظیمات مستقل عمومی | `AppConfig, load_config, database_path` |
-| `dashboard.py` | Application service، HTTP routes، گیت‌های دسترسی و API | `DashboardApp, DashboardHandler, DashboardServer, serve` |
-| `db.py` | Schema و تمام عملیات پایدار SQLite | `utc_now, image_fingerprint, Database` |
+| `dashboard.py` | Application service، HTTP routes، گیت دسترسی، API و سقف‌های حافظه | `DashboardApp, DashboardHandler, DashboardServer, serve` |
+| `db.py` | Schema، عملیات SQLite و ذخیره فشرده آگهی بدون پاسخ خام دیوار | `utc_now, image_fingerprint, Database` |
 | `divar_client.py` | دریافت map/detail دیوار، تقسیم bbox و parsing شبکه | `normalize_digits, parse_integer, parse_money, jalali_to_gregorian, extract_listing_dates, build_map_payload` |
-| `models.py` | قراردادهای Listing و ScoreResult | `Listing, ScoreResult` |
+| `models.py` | قراردادهای Listing و ScoreResult و payload فشرده ذخیره‌سازی | `Listing, ScoreResult` |
 | `neighborhoods.py` | بانک ثابت ۴۵۳ محله، normalization و lookup امتیاز | `normalize_text, NeighborhoodRating, NeighborhoodAtlas, default_atlas` |
 | `notifier.py` | ارسال اعلان اختیاری ntfy | `NtfyNotifier, format_money` |
 | `personalization.py` | مدل pairwise محلی و انتخاب مقایسه آموزنده | `PersonalizationEngine` |
 | `runtime.py` | ورودی production، Volume، ادمین bootstrap و اسکن پس‌زمینه PaaS | `DatabaseStartupState, environment_flag, inspect_database_startup, validate_paas_runtime, bootstrap_admin, scan_forever` |
 | `scoring.py` | الک قطعی spam و زیرهمکف، شروط سخت و امتیاز پایه از ۲۰ | `listing_exclusion_reason, profile_scope_exclusion_reason, score_listing` |
 | `search_profile.py` | اعتبارسنجی پاسخ‌ها و ساخت جست‌وجوی دیوار برای پروفایل | `SearchProfileError, districts, district_catalog, empty_profile, normalize_profile, validate_profile` |
-| `service.py` | هماهنگ‌کننده اسکن، retry پاسخ ناقص، جزئیات، آرشیو، امتیاز و اعلان | `ScanResult, ScoutService, merge_summary` |
+| `service.py` | هماهنگ‌کننده کم‌حافظه اسکن، retry، جزئیات، آرشیو، امتیاز و اعلان | `ScanResult, ScoutService, merge_summary` |
 
 ## صفحات اصلی
 

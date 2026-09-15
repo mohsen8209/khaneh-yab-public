@@ -320,30 +320,50 @@ class Database:
     def _backfill_listing_dates(connection: sqlite3.Connection) -> None:
         from .divar_client import extract_listing_dates
 
-        rows = connection.execute(
-            "SELECT token, listing_json FROM listings "
-            "WHERE detail_fetched_at IS NOT NULL"
-        ).fetchall()
-        for row in rows:
-            item = json.loads(row["listing_json"])
-            raw_detail = item.get("raw_detail") or {}
-            published_at, bumped_at = extract_listing_dates(raw_detail)
-            if not published_at:
-                continue
-            old_published_at = item.get("published_at")
-            changed = old_published_at != published_at
-            item["published_at"] = published_at
-            if not item.get("updated_at"):
-                item["updated_at"] = old_published_at or bumped_at
-                changed = True
-            if changed:
-                connection.execute(
-                    "UPDATE listings SET listing_json = ? WHERE token = ?",
+        # Old databases contain full Divar responses inside listing_json. Process
+        # them in small keyset batches so the migration itself cannot exhaust a
+        # small PaaS container.
+        last_token = ""
+        while True:
+            rows = connection.execute(
+                """
+                SELECT token, listing_json
+                FROM listings
+                WHERE token > ?
+                  AND (
+                    instr(listing_json, '"raw_detail"') > 0
+                    OR instr(listing_json, '"raw_summary"') > 0
+                  )
+                ORDER BY token
+                LIMIT 25
+                """,
+                (last_token,),
+            ).fetchall()
+            if not rows:
+                break
+            updates: list[tuple[str, str]] = []
+            for row in rows:
+                item = json.loads(row["listing_json"])
+                raw_detail = item.get("raw_detail") or {}
+                published_at, bumped_at = extract_listing_dates(raw_detail)
+                if published_at:
+                    old_published_at = item.get("published_at")
+                    item["published_at"] = published_at
+                    if not item.get("updated_at"):
+                        item["updated_at"] = old_published_at or bumped_at
+                item.pop("raw_summary", None)
+                item.pop("raw_detail", None)
+                updates.append(
                     (
                         json.dumps(item, ensure_ascii=False, separators=(",", ":")),
-                        row["token"],
-                    ),
+                        str(row["token"]),
+                    )
                 )
+            connection.executemany(
+                "UPDATE listings SET listing_json = ? WHERE token = ?", updates
+            )
+            connection.commit()
+            last_token = str(rows[-1]["token"])
 
     def get_user_profile(self, user_id: int) -> dict[str, Any]:
         with self.connect() as connection:
@@ -745,7 +765,17 @@ class Database:
         notification_eligible: bool = True,
     ) -> None:
         now = utc_now()
-        payload = json.dumps(listing.as_dict(), ensure_ascii=False, separators=(",", ":"))
+        stored = listing.as_storage_dict()
+        if listing.raw_detail:
+            from .divar_client import extract_listing_dates
+
+            published_at, bumped_at = extract_listing_dates(listing.raw_detail)
+            if published_at:
+                old_published_at = stored.get("published_at")
+                stored["published_at"] = published_at
+                if not stored.get("updated_at"):
+                    stored["updated_at"] = old_published_at or bumped_at
+        payload = json.dumps(stored, ensure_ascii=False, separators=(",", ":"))
         with self.connect() as connection:
             connection.execute(
                 """

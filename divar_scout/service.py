@@ -72,6 +72,7 @@ class ScoutService:
         scan_id = self.database.start_scan()
         was_empty = self.database.stats().get("total", 0) == 0
         summaries: list[Listing] = []
+        summary_count = 0
         detail_count = 0
         scored_count = 0
         alert_count = 0
@@ -92,9 +93,10 @@ class ScoutService:
             else:
                 summaries = self.client.fetch_summaries()
                 archive_safe = getattr(self.client, "last_fetch_complete", True)
+            summary_count = len(summaries)
             self.database.update_scan_progress(
                 scan_id,
-                summary_count=len(summaries),
+                summary_count=summary_count,
                 detail_count=detail_count,
                 filtered_count=len(filtered),
             )
@@ -137,7 +139,7 @@ class ScoutService:
             self.database.archive_filtered(filtered)
             self.database.update_scan_progress(
                 scan_id,
-                summary_count=len(summaries),
+                summary_count=summary_count,
                 detail_count=detail_count,
                 filtered_count=len(filtered),
             )
@@ -170,11 +172,14 @@ class ScoutService:
                     errors.append(f"{summary.token}: {error}")
                 self.database.update_scan_progress(
                     scan_id,
-                    summary_count=len(summaries),
+                    summary_count=summary_count,
                     detail_count=detail_count,
                     filtered_count=len(filtered),
                 )
 
+            # Summary cards can carry sizeable raw API payloads. Nothing below
+            # needs them, so release them before loading the scoring inventory.
+            del candidates, needs_detail, newly_discovered, summaries
             records = self.database.list_records(limit=2000)
             scored: list[tuple[Listing, ScoreResult, bool]] = []
             score_inputs: list[tuple[bool, Listing]] = []
@@ -214,6 +219,7 @@ class ScoutService:
                 self.database.save_score(listing.token, score)
                 scored.append((listing, score, personally_rejected))
                 scored_count += 1
+            del score_inputs, comparable_costs, duplicate_counts
 
             for listing, score, personally_rejected in scored:
                 if (
@@ -228,7 +234,7 @@ class ScoutService:
                     alert_count += 1
 
             result = ScanResult(
-                summary_count=len(summaries),
+                summary_count=summary_count,
                 detail_count=detail_count,
                 scored_count=scored_count,
                 alert_count=alert_count,
@@ -250,7 +256,7 @@ class ScoutService:
         except Exception as error:
             self.database.finish_scan(
                 scan_id,
-                summary_count=len(summaries),
+                summary_count=summary_count,
                 detail_count=detail_count,
                 expired_count=expired_count,
                 filtered_count=len(filtered),

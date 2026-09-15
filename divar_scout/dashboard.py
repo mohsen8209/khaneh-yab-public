@@ -50,6 +50,9 @@ CALIBRATION_POOL_SCAN_LIMIT = 2000
 MAX_CALIBRATION_SCAN_BATCHES = 3
 RECORD_CACHE_TTL_SECONDS = 10
 RECORD_CACHE_MAX_ENTRIES = 4
+PERSONALIZATION_ENGINE_CACHE_MAX_ENTRIES = 32
+RECORD_COMPUTE_LOCK_STRIPES = 16
+MAX_HTTP_REQUEST_THREADS = 12
 CLIENT_DISCONNECT_ERRORS = (
     BrokenPipeError,
     ConnectionAbortedError,
@@ -77,15 +80,16 @@ class DashboardApp:
             "last_error": None,
         }
         self.engine_lock = threading.Lock()
-        self._engines: dict[int | None, PersonalizationEngine] = {}
+        self._engines: OrderedDict[int | None, PersonalizationEngine] = OrderedDict()
         self.records_cache_lock = threading.Lock()
         self._records_cache: OrderedDict[
             tuple[int | None, int, bool], tuple[float, list[dict[str, Any]]]
         ] = OrderedDict()
         self._records_cache_generation = 0
-        self._records_compute_locks: dict[
-            tuple[int | None, int, bool], threading.Lock
-        ] = {}
+        self._records_compute_locks = tuple(
+            threading.Lock() for _ in range(RECORD_COMPUTE_LOCK_STRIPES)
+        )
+        self._records_compute_slot = threading.Lock()
         self.personalization = self.engine(None)
 
     def engine(self, user_id: int | None) -> PersonalizationEngine:
@@ -94,6 +98,9 @@ class DashboardApp:
                 self._engines[user_id] = PersonalizationEngine(
                     self.user_config(user_id), self.database, self.atlas, user_id=user_id
                 )
+            self._engines.move_to_end(user_id)
+            while len(self._engines) > PERSONALIZATION_ENGINE_CACHE_MAX_ENTRIES:
+                self._engines.popitem(last=False)
             return self._engines[user_id]
 
     def profile(self, user_id: int) -> dict[str, Any]:
@@ -190,7 +197,18 @@ class DashboardApp:
         return self.engine(user_id).state()
 
     def database_diagnostics(self) -> dict[str, Any]:
-        return self.database.database_diagnostics()
+        diagnostics = self.database.database_diagnostics()
+        with self.records_cache_lock:
+            records_cache_entries = len(self._records_cache)
+        with self.engine_lock:
+            engine_cache_entries = len(self._engines)
+        diagnostics["runtime"] = {
+            "rss_mb": _process_rss_mb(),
+            "records_cache_entries": records_cache_entries,
+            "engine_cache_entries": engine_cache_entries,
+            "active_http_threads": max(0, threading.active_count() - 1),
+        }
+        return diagnostics
 
     def set_feedback(
         self,
@@ -377,9 +395,9 @@ class DashboardApp:
             if cached and cached[0] > now:
                 self._records_cache.move_to_end(cache_key)
                 return cached[1]
-            compute_lock = self._records_compute_locks.setdefault(
-                cache_key, threading.Lock()
-            )
+            compute_lock = self._records_compute_locks[
+                hash(cache_key) % len(self._records_compute_locks)
+            ]
             generation = self._records_cache_generation
         with compute_lock:
             now = time.monotonic()
@@ -389,10 +407,19 @@ class DashboardApp:
                     self._records_cache.move_to_end(cache_key)
                     return cached[1]
                 generation = self._records_cache_generation
-            records = self._build_personalized_records(
-                user_id,
-                limit=limit,
-                include_market_context=include_market_context,
+            started = time.monotonic()
+            with self._records_compute_slot:
+                records = self._build_personalized_records(
+                    user_id,
+                    limit=limit,
+                    include_market_context=include_market_context,
+                )
+            _runtime_event(
+                "records_built",
+                user_id=user_id,
+                requested_limit=limit,
+                records=len(records),
+                duration_ms=round((time.monotonic() - started) * 1000),
             )
             with self.records_cache_lock:
                 if generation != self._records_cache_generation:
@@ -607,12 +634,27 @@ class DashboardApp:
             current_urls = source_urls
             calibration_batch = 1
             while True:
+                _runtime_event(
+                    "scan_started",
+                    user_id=user_id,
+                    source_count=len(current_urls),
+                    calibration_batch=calibration_batch,
+                )
                 result = self.run_scan(
                     detail_limit=detail_limit,
                     user_initiated=user_initiated,
                     source_urls=current_urls,
                     archive_missing=archive_missing,
                     user_id=user_id,
+                )
+                _runtime_event(
+                    "scan_finished",
+                    user_id=user_id,
+                    source_count=len(current_urls),
+                    calibration_batch=calibration_batch,
+                    summaries=result.get("summary_count"),
+                    details=result.get("detail_count"),
+                    filtered=result.get("filtered_count"),
                 )
                 self._invalidate_records_cache()
                 if self._needs_calibration_top_up(
@@ -649,6 +691,11 @@ class DashboardApp:
                     )
                     return
         except Exception as error:
+            _runtime_event(
+                "scan_failed",
+                user_id=user_id,
+                error=str(error)[:500],
+            )
             with self.scan_state_lock:
                 self._active_scan_urls.clear()
                 self._queued_scan_jobs.clear()
@@ -1282,8 +1329,23 @@ class DashboardServer(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address: tuple[str, int], app: DashboardApp) -> None:
+        self._request_slots = threading.BoundedSemaphore(MAX_HTTP_REQUEST_THREADS)
         super().__init__(address, DashboardHandler)
         self.app = app
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        self._request_slots.acquire()
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._request_slots.release()
+            raise
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._request_slots.release()
 
 
 def _public_listing(item: dict[str, Any]) -> dict[str, Any]:
@@ -1298,6 +1360,28 @@ def _public_calibration_state(state: dict[str, Any]) -> dict[str, Any]:
 
 def _utc_timestamp() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _process_rss_mb() -> float | None:
+    try:
+        with open("/proc/self/status", encoding="ascii") as status:
+            for line in status:
+                if line.startswith("VmRSS:"):
+                    return round(int(line.split()[1]) / 1024, 1)
+    except (OSError, ValueError, IndexError):
+        return None
+    return None
+
+
+def _runtime_event(event: str, **details: Any) -> None:
+    print(
+        json.dumps(
+            {"event": event, "rss_mb": _process_rss_mb(), **details},
+            ensure_ascii=True,
+            separators=(",", ":"),
+        ),
+        flush=True,
+    )
 
 
 def serve(config: AppConfig, app: DashboardApp | None = None) -> None:

@@ -23,17 +23,17 @@ MODULE_DESCRIPTIONS = {
     "auth.py": "حساب، رمز scrypt، نشست، CSRF، تأیید مدیر و ممیزی",
     "cli.py": "فرمان‌های dashboard، scan، watch، admin-create و اعلان",
     "config.py": "بارگذاری و اعتبارسنجی تنظیمات مستقل عمومی",
-    "dashboard.py": "Application service، HTTP routes، گیت‌های دسترسی و API",
-    "db.py": "Schema و تمام عملیات پایدار SQLite",
+    "dashboard.py": "Application service، HTTP routes، گیت دسترسی، API و سقف‌های حافظه",
+    "db.py": "Schema، عملیات SQLite و ذخیره فشرده آگهی بدون پاسخ خام دیوار",
     "divar_client.py": "دریافت map/detail دیوار، تقسیم bbox و parsing شبکه",
-    "models.py": "قراردادهای Listing و ScoreResult",
+    "models.py": "قراردادهای Listing و ScoreResult و payload فشرده ذخیره‌سازی",
     "neighborhoods.py": "بانک ثابت ۴۵۳ محله، normalization و lookup امتیاز",
     "notifier.py": "ارسال اعلان اختیاری ntfy",
     "personalization.py": "مدل pairwise محلی و انتخاب مقایسه آموزنده",
     "runtime.py": "ورودی production، Volume، ادمین bootstrap و اسکن پس‌زمینه PaaS",
     "scoring.py": "الک قطعی spam و زیرهمکف، شروط سخت و امتیاز پایه از ۲۰",
     "search_profile.py": "اعتبارسنجی پاسخ‌ها و ساخت جست‌وجوی دیوار برای پروفایل",
-    "service.py": "هماهنگ‌کننده اسکن، retry پاسخ ناقص، جزئیات، آرشیو، امتیاز و اعلان",
+    "service.py": "هماهنگ‌کننده کم‌حافظه اسکن، retry، جزئیات، آرشیو، امتیاز و اعلان",
 }
 
 PAGE_DESCRIPTIONS = {

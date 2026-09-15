@@ -43,6 +43,47 @@ class DashboardTests(unittest.TestCase):
             )
             self.assertLessEqual(len(app._records_cache), 4)
 
+    def test_different_users_cannot_build_large_record_sets_in_parallel(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            app = DashboardApp(
+                load_config(), database=Database(Path(directory) / "test.sqlite3")
+            )
+            active = 0
+            peak = 0
+            active_lock = threading.Lock()
+
+            def build_records(*_args, **_kwargs):
+                nonlocal active, peak
+                with active_lock:
+                    active += 1
+                    peak = max(peak, active)
+                time.sleep(0.03)
+                with active_lock:
+                    active -= 1
+                return []
+
+            with patch.object(app, "_build_personalized_records", build_records):
+                with ThreadPoolExecutor(max_workers=8) as executor:
+                    list(
+                        executor.map(
+                            lambda user_id: app._personalized_records(user_id=user_id),
+                            range(1, 9),
+                        )
+                    )
+
+            self.assertEqual(peak, 1)
+
+    def test_runtime_caches_have_fixed_upper_bounds(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            app = DashboardApp(
+                load_config(), database=Database(Path(directory) / "test.sqlite3")
+            )
+            for user_id in range(1, 80):
+                app.engine(user_id)
+
+            self.assertLessEqual(len(app._engines), 32)
+            self.assertEqual(len(app._records_compute_locks), 16)
+
     def test_dashboard_port_cannot_be_shared_by_stale_processes(self) -> None:
         self.assertFalse(DashboardServer.allow_reuse_address)
         self.assertTrue(DashboardServer.daemon_threads)

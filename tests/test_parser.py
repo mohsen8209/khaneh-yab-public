@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -273,24 +274,64 @@ class ParserTests(unittest.TestCase):
             path = Path(directory) / "migration.db"
             database = Database(path)
             database.upsert_listing(
-                Listing(
-                    token="legacy",
-                    title="ملک",
-                    url="https://divar.ir/v/legacy",
-                    published_at="2026-08-18T09:06:10.737376Z",
-                    raw_detail={"sections": [{"widgets": [publication_widget]}]},
-                ),
+                Listing(token="legacy", title="ملک", url="https://divar.ir/v/legacy"),
                 detail_fetched=True,
             )
             database.set_feedback("legacy", "favorite", ["good_value"])
+            legacy_payload = Listing(
+                token="legacy",
+                title="ملک",
+                url="https://divar.ir/v/legacy",
+                published_at="2026-08-18T09:06:10.737376Z",
+                raw_summary={"large": "x" * 100_000},
+                raw_detail={"sections": [{"widgets": [publication_widget]}]},
+            ).as_dict()
+            with database.connect() as connection:
+                connection.execute(
+                    "UPDATE listings SET listing_json = ? WHERE token = 'legacy'",
+                    (json.dumps(legacy_payload),),
+                )
 
             migrated = Database(path)
             listing = migrated.get_listing("legacy")
             record = migrated.list_records()[0]
+            with migrated.connect() as connection:
+                stored_json = str(
+                    connection.execute(
+                        "SELECT listing_json FROM listings WHERE token = 'legacy'"
+                    ).fetchone()["listing_json"]
+                )
 
             self.assertEqual(listing.published_at, "2026-07-27T09:03:00Z")
             self.assertEqual(listing.updated_at, "2026-08-18T09:06:10.737376Z")
             self.assertEqual(record["feedback"], "favorite")
+            self.assertNotIn("raw_summary", stored_json)
+            self.assertNotIn("raw_detail", stored_json)
+            self.assertLess(len(stored_json), 5_000)
+
+    def test_new_listings_never_persist_raw_divar_payloads(self) -> None:
+        with TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "compact.db")
+            database.upsert_listing(
+                Listing(
+                    token="compact",
+                    title="Compact",
+                    url="https://divar.ir/v/compact",
+                    raw_summary={"large": "x" * 100_000},
+                    raw_detail={"large": "y" * 100_000},
+                ),
+                detail_fetched=True,
+            )
+            with database.connect() as connection:
+                stored_json = str(
+                    connection.execute(
+                        "SELECT listing_json FROM listings WHERE token = 'compact'"
+                    ).fetchone()["listing_json"]
+                )
+
+            self.assertNotIn("raw_summary", stored_json)
+            self.assertNotIn("raw_detail", stored_json)
+            self.assertLess(len(stored_json), 5_000)
 
 
 if __name__ == "__main__":

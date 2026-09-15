@@ -42,6 +42,12 @@ class Listing:
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    def as_storage_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload.pop("raw_summary", None)
+        payload.pop("raw_detail", None)
+        return payload
+
 
 @dataclass
 class ScoreResult:
